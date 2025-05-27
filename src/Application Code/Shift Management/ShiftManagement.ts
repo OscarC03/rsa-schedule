@@ -104,13 +104,26 @@ export const GenerateShift = (startDate: Date, resources: Resource[], shifts: Sh
         }
 
         if (morningCount >= 5 && splitCount >= 3 && afternoonCount >= 4 && nightCount >= 2) {
+            currentDay.setDate(currentDay.getDate() + 1);
             morningCount = 0;
             splitCount = 0;
             afternoonCount = 0;
             nightCount = 0;
+            
+            resourceShifts.forEach((shift) => {
+                let shiftDate: Date = new Date(shift.date);
+                for(let i = 0; i < 3; i++) {
+                    let currFreeDay: Date = new Date(shiftDate.setDate(shiftDate.getDate() + i+1));
+                    resourceShifts.push({
+                        resourceId: shift.resourceId,
+                        shiftCode: 'FREE',
+                        shiftType: ShiftType.Free,
+                        date: currFreeDay
+                    });
+                }
+            });
         }
 
-        currentDay.setDate(currentDay.getDate() + 1);
         if (currentDay >= endDay) {
             break;
         }
