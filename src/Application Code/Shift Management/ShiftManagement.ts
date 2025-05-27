@@ -11,67 +11,109 @@ export const GenerateShift = (startDate: Date, resources: Resource[], shifts: Sh
     let afternoonCount: number = 0;
     let nightCount: number = 0;
     while(startDay <= endDay) {
-        while(morningCount = 5){
-            resources.forEach(resource => {
-                if (canUseResource(resourceShifts, resource, ShiftType.Morning, currentDay)) {
-                    resourceShifts.push({
-                        resourceId: resource.id,
-                        shiftCode: 'MORNING',
-                        shiftType: ShiftType.Morning,
-                        date: currentDay
-                    });
+        if (morningCount === 0) {
+            while(morningCount <= 5){
+                for (let resource of resources) {
+                    if (canUseResource(resourceShifts, resource, ShiftType.Morning, currentDay)) {
+                        resourceShifts.push({
+                            resourceId: resource.id,
+                            shiftCode: 'MORNING',
+                            shiftType: ShiftType.Morning,
+                            date: currentDay
+                        });
 
-                    morningCount++;
+                        morningCount += 1;
+                    }
+
+                    if (morningCount >= 5)
+                        break;
                 }
-            });
+
+                if (morningCount >= 5)
+                    break;
+            }
         }
 
-        while(splitCount = 3){
-            resources.forEach(resource => {
-                if (canUseResource(resourceShifts, resource, ShiftType.Split, currentDay)) {
-                    resourceShifts.push({
-                        resourceId: resource.id,
-                        shiftCode: 'SPLIT',
-                        shiftType: ShiftType.Split,
-                        date: currentDay
-                    });
-                    
-                    splitCount++;
-                }
-            });
+        if(splitCount === 0) {
+            while(splitCount <= 3){
+                for (let resource of resources) {
+                    if (canUseResource(resourceShifts, resource, ShiftType.Split, currentDay)) {
+                        resourceShifts.push({
+                            resourceId: resource.id,
+                            shiftCode: 'SPLIT',
+                            shiftType: ShiftType.Split,
+                            date: currentDay
+                        });
+                        
+                        splitCount += 1;
+                    }
+
+                    if (splitCount >= 3)
+                        break;
+                };
+
+                if (splitCount >= 3)
+                    break;
+            }
+        }
+        
+        if(afternoonCount === 0) {
+            while(afternoonCount <= 4){
+                for (let resource of resources) {
+                    if (canUseResource(resourceShifts, resource, ShiftType.Afternoon, currentDay)) {
+                        resourceShifts.push({
+                            resourceId: resource.id,
+                            shiftCode: 'AFTERNOON',
+                            shiftType: ShiftType.Afternoon,
+                            date: currentDay
+                        });
+                        
+                        afternoonCount += 1;
+                    }
+
+                    if (afternoonCount >= 4)
+                        break;
+                };
+
+                if (afternoonCount >= 4)
+                    break;
+            }
         }
 
-        while(afternoonCount = 4){
-            resources.forEach(resource => {
-                if (canUseResource(resourceShifts, resource, ShiftType.Afternoon, currentDay)) {
-                    resourceShifts.push({
-                        resourceId: resource.id,
-                        shiftCode: 'AFTERNOON',
-                        shiftType: ShiftType.Afternoon,
-                        date: currentDay
-                    });
-                    
-                    afternoonCount++;
-                }
-            });
+        if(nightCount === 0) {
+            while(nightCount <= 2){
+                for (let resource of resources) {
+                    if (canUseResource(resourceShifts, resource, ShiftType.Night, currentDay)) {
+                        resourceShifts.push({
+                            resourceId: resource.id,
+                            shiftCode: 'NIGHT',
+                            shiftType: ShiftType.Night,
+                            date: currentDay
+                        });
+                        
+                        nightCount += 1;
+                    }
+
+                    if (nightCount >= 2)
+                        break;
+                };
+
+                if (nightCount >= 2)
+                    break;
+            }
         }
 
-        while(nightCount = 2){
-            resources.forEach(resource => {
-                if (canUseResource(resourceShifts, resource, ShiftType.Night, currentDay)) {
-                    resourceShifts.push({
-                        resourceId: resource.id,
-                        shiftCode: 'NIGHT',
-                        shiftType: ShiftType.Night,
-                        date: currentDay
-                    });
-                    
-                    nightCount++;
-                }
-            });
+        if (morningCount >= 5 && splitCount >= 3 && afternoonCount >= 4 && nightCount >= 2) {
+            morningCount = 0;
+            splitCount = 0;
+            afternoonCount = 0;
+            nightCount = 0;
         }
 
         currentDay.setDate(currentDay.getDate() + 1);
+        if (currentDay >= endDay) {
+            break;
+        }
     }
 
     return resourceShifts;
@@ -81,7 +123,7 @@ export const canUseResource = (resourceShifts: ResourceShift[], resource: Resour
     if (resource.forbiddenShiftTypes.includes(shiftType)) {
         return false;
     }
-    if (resourceShifts.findIndex(e => e.date === date) !== -1) {
+    if (resourceShifts.findIndex(e => e.date === date && e.resourceId === resource.id) !== -1) {
         return false;
     }
 
