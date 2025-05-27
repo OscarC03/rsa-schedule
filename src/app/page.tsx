@@ -6,14 +6,14 @@ import { useEffect, useState } from "react";
 
 export default function Page() {
     const [shifts, setShifts] = useState<ResourceShift[]>([]);
-    const [matrix, setMatrix] = useState<Record<number, Record<string, ResourceShift>>>({});
+    const [matrix, setMatrix] = useState<Record<string, Record<string, ResourceShift>>>({});
     const [dateArray, setDateArray] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
 
     const resources: Resource[] = [
         // 23 OSS A TEMPO PIENO
         ...Array.from({ length: 23 }, (_, i) => ({
-            id: i + 1,
+            id: (i + 1).toString(),
             firstName: `OSS${i + 1}`,
             lastName: `FullTime`,
             forbiddenShiftTypes: [],
@@ -22,7 +22,7 @@ export default function Page() {
         })),
         // 1 OSS PART TIME 50%
         {
-            id: 24,
+            id: '24',
             firstName: "OSS24",
             lastName: "PartTime50",
             forbiddenShiftTypes: [],
@@ -31,7 +31,7 @@ export default function Page() {
         },
         // 3 OSS PART TIME 70%
         ...Array.from({ length: 3 }, (_, i) => ({
-            id: 25 + i,
+            id: (25 + i).toString(),
             firstName: `OSS${25 + i}`,
             lastName: "PartTime70",
             forbiddenShiftTypes: [],
@@ -39,6 +39,14 @@ export default function Page() {
             fixedDays: []
         }))
     ];
+
+    const coloriTurni: Record<ShiftType, string> = {
+        Morning: '#D1E7DD',    // verde chiaro
+        Afternoon: '#FFE5B4', // arancio chiaro
+        Split: '#CFE2FF',   // azzurro chiaro
+        Night: '#B6D7A8',      // verde più scuro
+        Free: '#F0F0F0',     // grigio chiaro
+    };
 
     useEffect(() => {
         const startDate = new Date('2025-05-01');
@@ -51,7 +59,7 @@ export default function Page() {
         setDateArray(dateArray);
 
         // Costruisci una mappa per accedere velocemente ai turni [risorsa][data] => turno
-        const mappaTurni: Record<number, Record<string, ResourceShift>> = {};
+        const mappaTurni: Record<string, Record<string, ResourceShift>> = {};
 
         resources.forEach(resource => {
             mappaTurni[resource.id] = {};
@@ -70,31 +78,39 @@ export default function Page() {
 
     return (
         <div className="p-4 overflow-auto">
-        <h2 className="text-xl font-semibold mb-4">Turni OSS - Maggio 2025</h2>
-        <table className="min-w-full border border-gray-300 table-auto">
-            <thead className="bg-gray-100">
-            <tr>
-                <th className="p-2 border sticky top-0 bg-gray-100 z-10 text-black">Risorsa</th>
-                {dateArray.map(date => (
-                <th key={date} className="p-2 border sticky top-0 bg-gray-100 z-10 text-black" style={{ whiteSpace: 'nowrap' }}>
-                    {date}
-                </th>
+            <h2 className="text-xl font-semibold mb-4">Turni OSS - Maggio 2025 (Copertura fissa)</h2>
+            <table className="min-w-full border border-gray-300 table-auto">
+                <thead className="bg-gray-100">
+                    <tr>
+                        <th className="p-2 border sticky top-0 bg-gray-100 z-10 text-black">Risorsa</th>
+                        {dateArray.map(date => (
+                        <th key={date} className="p-2 border sticky top-0 bg-gray-100 text-black z-10" style={{ whiteSpace: 'nowrap' }}>
+                            {date}
+                        </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                {resources.map(risorsa => (
+                    <tr key={risorsa.id} className="odd:bg-white even:bg-gray-50 text-black">
+                    <td className="p-2 border font-medium text-black">{risorsa.firstName}</td>
+                    {dateArray.map(date => {
+                        const turno = matrix[risorsa.id][date];
+                        return (
+                        <td
+                            key={date}
+                            className="p-2 border text-center text-black"
+                            style={{ backgroundColor: coloriTurni[turno.shiftType] || undefined }}
+                            title={turno.shiftType.toString()}
+                        >
+                            {turno.shiftType.toString()}
+                        </td>
+                        );
+                    })}
+                    </tr>
                 ))}
-            </tr>
-            </thead>
-            <tbody>
-            {resources.map(risorsa => (
-                <tr key={risorsa.id} className="odd:bg-white even:bg-gray-50">
-                <td className="p-2 border font-medium text-black">{risorsa.firstName}</td>
-                {dateArray.map(date => (
-                    <td key={date} className="p-2 border text-center text-black">
-                        {matrix[risorsa.id][date].shiftType}
-                    </td>
-                ))}
-                </tr>
-            ))}
-            </tbody>
-        </table>
+                </tbody>
+            </table>
         </div>
     );
 }

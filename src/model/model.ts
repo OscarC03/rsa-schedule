@@ -1,6 +1,6 @@
 
 export class Resource {
-    public id: number = 0;
+    public id: string = '';
     public firstName: string = "";
     public lastName: string = "";
     public forbiddenShiftTypes: ShiftType[] = [];
@@ -28,13 +28,12 @@ export enum Days {
 export class Shift {
     public code: string = "";
     public description: string = "";
-    public type: ShiftType = ShiftType.None;
+    public type: ShiftType = ShiftType.Morning;
     public startTime: string = "";
     public endTime: string = "";
 }
 
 export enum ShiftType {
-    None = 'None',
     Morning = 'Morning',
     Split = 'Split',
     Afternoon = 'Afternoon',
@@ -43,8 +42,8 @@ export enum ShiftType {
 }
 
 export class ResourceShift {
-    public resourceId: number = 0;
+    public resourceId: string = '';
     public shiftCode: string = "";
-    public shiftType: ShiftType = ShiftType.None;
+    public shiftType: ShiftType = ShiftType.Morning;
     public date: string = '';
 }
