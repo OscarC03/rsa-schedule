@@ -34,17 +34,17 @@ export class Shift {
 }
 
 export enum ShiftType {
-    None,
-    Morning,
-    Split,
-    Afternoon,
-    Night,
-    Free,
+    None = 'None',
+    Morning = 'Morning',
+    Split = 'Split',
+    Afternoon = 'Afternoon',
+    Night = 'Night',
+    Free = 'Free',
 }
 
 export class ResourceShift {
     public resourceId: number = 0;
     public shiftCode: string = "";
     public shiftType: ShiftType = ShiftType.None;
-    public date: Date = new Date();
+    public date: string = '';
 }

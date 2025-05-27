@@ -1,10 +1,15 @@
 "use client";
 
 import { GenerateShift } from "@/Application Code/Shift Management/ShiftManagement";
-import { Resource, ResourceType, Shift, ShiftType } from "@/model/model";
-import { useEffect } from "react";
+import { Resource, ResourceShift, ResourceType, Shift, ShiftType } from "@/model/model";
+import { useEffect, useState } from "react";
 
 export default function Page() {
+    const [shifts, setShifts] = useState<ResourceShift[]>([]);
+    const [matrix, setMatrix] = useState<Record<number, Record<string, ResourceShift>>>({});
+    const [dateArray, setDateArray] = useState<string[]>([]);
+    const [isLoading, setIsLoading] = useState<boolean>(true);
+
     const resources: Resource[] = [
         // 23 OSS A TEMPO PIENO
         ...Array.from({ length: 23 }, (_, i) => ({
@@ -35,51 +40,61 @@ export default function Page() {
         }))
     ];
 
-    const shifts: Shift[] = [
-        {
-            code: "MORNING",
-            description: "Mattina",
-            type: ShiftType.Morning,
-            startTime: "07:00",
-            endTime: "14:00"
-        },
-        {
-            code: "AFTERNOON",
-            description: "Pomeriggio",
-            type: ShiftType.Afternoon,
-            startTime: "14:00",
-            endTime: "21:00"
-        },
-        {
-            code: "NIGHT",
-            description: "Notte",
-            type: ShiftType.Night,
-            startTime: "21:00",
-            endTime: "07:00"
-        },
-        {
-            code: "SPLIT",
-            description: "Spezzato",
-            type: ShiftType.Split,
-            startTime: "09:00",
-            endTime: "18:00"
-        },
-        {
-            code: "FREE",
-            description: "Riposo",
-            type: ShiftType.Free,
-            startTime: "",
-            endTime: ""
-        }
-    ];
-
     useEffect(() => {
         const startDate = new Date('2025-05-01');
-        const resourceShifts = GenerateShift(startDate, resources, shifts);
-        console.log(resourceShifts);
+        const resourceShifts = GenerateShift(startDate, resources);
+        setShifts(resourceShifts);
+
+        // Estrai tutte le date distinte ordinate
+        const dateSet = new Set(resourceShifts.map(t => t.date));
+        const dateArray = Array.from(dateSet).sort();
+        setDateArray(dateArray);
+
+        // Costruisci una mappa per accedere velocemente ai turni [risorsa][data] => turno
+        const mappaTurni: Record<number, Record<string, ResourceShift>> = {};
+
+        resources.forEach(resource => {
+            mappaTurni[resource.id] = {};
+        });
+
+        resourceShifts.forEach((value: ResourceShift, index: number, array: ResourceShift[]) => {
+            mappaTurni[value.resourceId][value.date] = value;
+        });
+        
+        setMatrix(mappaTurni);
+        setIsLoading(false);
     }, []);
 
+    if(isLoading)
+        return <div className="p-4">Caricamento in corso...</div>;
+
     return (
-        <></>
+        <div className="p-4 overflow-auto">
+        <h2 className="text-xl font-semibold mb-4">Turni OSS - Maggio 2025</h2>
+        <table className="min-w-full border border-gray-300 table-auto">
+            <thead className="bg-gray-100">
+            <tr>
+                <th className="p-2 border sticky top-0 bg-gray-100 z-10 text-black">Risorsa</th>
+                {dateArray.map(date => (
+                <th key={date} className="p-2 border sticky top-0 bg-gray-100 z-10 text-black" style={{ whiteSpace: 'nowrap' }}>
+                    {date}
+                </th>
+                ))}
+            </tr>
+            </thead>
+            <tbody>
+            {resources.map(risorsa => (
+                <tr key={risorsa.id} className="odd:bg-white even:bg-gray-50">
+                <td className="p-2 border font-medium text-black">{risorsa.firstName}</td>
+                {dateArray.map(date => (
+                    <td key={date} className="p-2 border text-center text-black">
+                        {matrix[risorsa.id][date].shiftType}
+                    </td>
+                ))}
+                </tr>
+            ))}
+            </tbody>
+        </table>
+        </div>
     );
 }
