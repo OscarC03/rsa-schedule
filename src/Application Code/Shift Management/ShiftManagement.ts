@@ -44,13 +44,15 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
 
     const rotatedResources = rotateArray(resources, day);
 
-    // Prima passata: assegna il turno del ciclo
     for (const resource of rotatedResources) {
       const cycleIdx = resourceCycleIndex[resource.id];
       let shift = SHIFT_CYCLE[cycleIdx];
 
-      // Evita di assegnare il turno di notte ai part-time
-      if (shift === ShiftType.Night && isPartTime(resource)) {
+      // Skip Night if resource is part-time
+      if (
+        shift === ShiftType.Night &&
+        (resource.type === ResourceType.PART_TIME_50 || resource.type === ResourceType.PART_TIME_70)
+      ) {
         shift = ShiftType.Free;
       }
 
@@ -59,22 +61,23 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
         shiftType: shift,
         shiftCode: shift,
         date: currentDate,
+        floor: 0, // da assegnare dopo
       });
 
       dailyCount[shift]++;
       resourceCycleIndex[resource.id] = (cycleIdx + 1) % SHIFT_CYCLE.length;
     }
 
-    // Seconda passata: correggi se mancano turni da coprire
     for (const shiftType of ["Morning", "Afternoon", "Split", "Night"] as ShiftType[]) {
       while (dailyCount[shiftType] < DAILY_REQUIREMENTS[shiftType]) {
-        const free = schedule.find((s) =>
-          s.date === currentDate &&
-          s.shiftType === ShiftType.Free &&
-          // Se stai cercando un turno notte, escludi i part-time
-          (shiftType !== ShiftType.Night || !isPartTime(
-            resources.find(r => r.id === s.resourceId)!
-          ))
+        const free = schedule.find(
+          (s) =>
+            s.date === currentDate &&
+            s.shiftType === ShiftType.Free &&
+            !(
+              shiftType === ShiftType.Night &&
+              resources.find((r) => r.id === s.resourceId)?.type !== ResourceType.FULL_TIME
+            )
         );
 
         if (!free) break;
@@ -85,16 +88,70 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
         dailyCount[ShiftType.Free]--;
       }
     }
+
+    // Assegna i floor
+    const shiftsOfDay = schedule.filter(s => s.date === currentDate);
+
+    assignFloors(shiftsOfDay);
   }
 
   return schedule;
 };
 
-function isPartTime(resource: Resource): boolean {
-  return (
-    resource.type === ResourceType.PART_TIME_50 ||
-    resource.type === ResourceType.PART_TIME_70
+function assignFloors(shifts: ResourceShift[]) {
+  const day = new Date(shifts[0].date).getDate();
+  const weekIndex = Math.floor((day - 1) / 7); // 0-based index for the week of the month
+
+  // Ordina i turni per resourceId per consistenza
+  const sortByResourceId = (a: ResourceShift, b: ResourceShift) =>
+    a.resourceId.localeCompare(b.resourceId);
+
+  const rotate = <T>(arr: T[], shift: number): T[] => {
+    const len = arr.length;
+    shift = ((shift % len) + len) % len;
+    return arr.slice(shift).concat(arr.slice(0, shift));
+  };
+
+  const morningShifts = rotate(
+    shifts.filter(s => s.shiftType === ShiftType.Morning).sort(sortByResourceId),
+    weekIndex
   );
+  const afternoonShifts = rotate(
+    shifts.filter(s => s.shiftType === ShiftType.Afternoon).sort(sortByResourceId),
+    weekIndex
+  );
+  const splitShifts = rotate(
+    shifts.filter(s => s.shiftType === ShiftType.Split).sort(sortByResourceId),
+    weekIndex
+  );
+
+  // Morning: 1 at floor 4, rest floors 1-3
+  if (morningShifts.length > 0) {
+    morningShifts[0].floor = 4;
+    for (let i = 1; i < morningShifts.length; i++) {
+      morningShifts[i].floor = ((i - 1) % 3) + 1;
+    }
+  }
+
+  // Afternoon: one for each floor 1-4
+  afternoonShifts.forEach((s, idx) => {
+    s.floor = (idx % 4) + 1;
+  });
+
+  // Split: 1 at floor 4, rest floors 1-3
+  if (splitShifts.length > 0) {
+    splitShifts[0].floor = 4;
+    for (let i = 1; i < splitShifts.length; i++) {
+      splitShifts[i].floor = ((i - 1) % 3) + 1;
+    }
+  }
+
+  // Night and Free: no floor
+  shifts.forEach(s => {
+    if (s.shiftType === ShiftType.Night || s.shiftType === ShiftType.Free) {
+      s.floor = 0;
+    }
+  });
 }
 
 export function replicateScheduleForMonth(

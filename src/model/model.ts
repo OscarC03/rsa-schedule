@@ -45,6 +45,7 @@ export class ResourceShift {
     public resourceId: string = '';
     public shiftCode: string = "";
     public shiftType: ShiftType = ShiftType.Morning;
+    public floor: number = 0;
     public date: string = '';
 }
 

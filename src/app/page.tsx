@@ -81,6 +81,7 @@ export default function Page() {
 
     const initSchedule = (resourceShifts: ResourceShift[]) => {
         setIsLoading(true);
+        console.log(resourceShifts);
 
         // Estrai tutte le date distinte ordinate
         const dateSet = new Set(resourceShifts.map(t => t.date));
@@ -100,6 +101,12 @@ export default function Page() {
         
         setMatrix(mappaTurni);
         setIsLoading(false);
+    }
+
+    const convertDateToString = (date: string): string => {
+        let currDate = new Date(date);
+        const dateTxt: string = currDate.toLocaleDateString('it-IT', {day: "2-digit", month: "short"});
+        return dateTxt;
     }
 
     useEffect(() => {
@@ -126,7 +133,7 @@ export default function Page() {
                     onChange={handleMonthChange}
                 >
                     {mesi.map(mese => (
-                        <option key={mese.value} value={mese.value}>{mese.label}</option>
+                        <option className="text-black" key={mese.value} value={mese.value}>{mese.label}</option>
                     ))}
                 </select>
             </div>
@@ -137,9 +144,11 @@ export default function Page() {
                             <tr>
                                 <th className="p-2 border sticky top-0 bg-gray-100 z-10 text-black">Risorsa</th>
                                 {dateArray.map(date => (
-                                <th key={date} className="p-2 border sticky top-0 bg-gray-100 text-black z-10" style={{ whiteSpace: 'nowrap' }}>
-                                    {date}
-                                </th>
+                                    <th key={date} className="p-2 border sticky top-0 bg-gray-100 text-black z-10" style={{ whiteSpace: 'nowrap' }}>
+                                        {
+                                            convertDateToString(date)
+                                        }
+                                    </th>
                                 ))}
                             </tr>
                         </thead>
@@ -156,7 +165,12 @@ export default function Page() {
                                     style={{ backgroundColor: coloriTurni[turno.shiftType] || undefined }}
                                     title={turno.shiftType.toString()}
                                 >
-                                    {turno.shiftType.toString()}
+                                    {
+                                        turno.floor > 0 ?
+                                            turno.shiftType.toString() + ' Piano: ' + turno.floor.toString()
+                                        :
+                                        turno.shiftType.toString()
+                                    } 
                                 </td>
                                 );
                             })}
