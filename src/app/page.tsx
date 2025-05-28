@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, useMemo, memo } from "react";
 import { TableVirtuoso } from "react-virtuoso";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
+import ReactDOM from "react-dom";
 
 // Dimensioni costanti per celle e header
 const CELL_HEIGHT = 64;
@@ -90,6 +91,319 @@ const DraggableCell = memo(function DraggableCell({
     >
       {display}
     </div>
+  );
+});
+
+// Add this definition at the top with other constants
+const shiftTypes: ShiftType[] = [ShiftType.Morning, ShiftType.Afternoon, ShiftType.Split, ShiftType.Night, ShiftType.Free];
+
+// Add this new component for editable cells with double-click functionality
+const EditableCell = memo(function EditableCell({
+  rowIdx,
+  colIdx,
+  value,
+  onCellDrop,
+  coloriTurni,
+  onShiftChange
+}: {
+  rowIdx: number;
+  colIdx: number;
+  value: ResourceShift | undefined;
+  onCellDrop: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void;
+  coloriTurni: Record<ShiftType, string>;
+  onShiftChange: (rowIdx: number, colIdx: number, shiftType: ShiftType, floor: number) => void;
+}) {
+  const [{ isDragging }, drag] = useDrag({
+    type: CELL_TYPE,
+    item: () => ({ rowIdx, colIdx, value }), // Using a function to get current value when dragging starts
+    collect: (monitor) => ({
+      isDragging: monitor.isDragging()
+    })
+  });
+
+  const [, drop] = useDrop({
+    accept: CELL_TYPE,
+    drop: (item: any) => {
+      if (item.rowIdx !== rowIdx || item.colIdx !== colIdx) {
+        onCellDrop(item.rowIdx, item.colIdx, rowIdx, colIdx);
+      }
+    }
+  });
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Add state for selected shift type and floor
+  const [selectedShift, setSelectedShift] = useState<ShiftType>(value?.shiftType || ShiftType.Free);
+  const [selectedFloor, setSelectedFloor] = useState<number>(value?.floor || 0);
+  
+  // Floor options - changed to only 4 floors
+  const floorOptions = [0, 1, 2, 3, 4];
+
+  let display = "";
+  if (
+    value &&
+    typeof value === "object" &&
+    value !== null &&
+    typeof value.shiftType === "string"
+  ) {
+    display = value.floor > 0
+      ? `${value.shiftType} Piano: ${value.floor}`
+      : value.shiftType;
+  }
+
+  const setRef = (node: HTMLDivElement | null) => {
+    ref.current = node;
+    drag(drop(node));
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Get position for the menu
+    const rect = e.currentTarget.getBoundingClientRect();
+    
+    // Set initial values based on current cell value
+    setSelectedShift(value?.shiftType || ShiftType.Free);
+    setSelectedFloor(value?.floor || 0);
+    
+    // Calculate position with awareness of window boundaries
+    const menuWidth = Math.max(CELL_WIDTH, 200); // Slightly increased for floor selection
+    
+    // Check if menu would overflow right edge of window
+    const rightOverflow = (rect.left + menuWidth) > window.innerWidth;
+    
+    // Position the menu either to right or left of the click depending on space
+    const xPos = rightOverflow ? 
+      Math.max(5, rect.right - menuWidth) : // If overflow, align to right edge of cell
+      rect.left;
+    
+    // Check if menu would overflow bottom edge (assuming ~280px height with floor selection)
+    const menuHeight = 280;
+    const bottomOverflow = (rect.bottom + menuHeight) > window.innerHeight;
+    
+    const yPos = bottomOverflow ?
+      Math.max(5, rect.top - menuHeight) : // If overflow, place above the cell
+      rect.bottom;
+    
+    setMenuPosition({
+      x: xPos,
+      y: yPos
+    });
+    
+    setIsEditing(true);
+  };
+  
+  // Handle shift type selection
+  const handleShiftTypeSelect = (shiftType: ShiftType) => {
+    setSelectedShift(shiftType);
+    
+    // Automatically set floor to 0 for Free shift type
+    if (shiftType === ShiftType.Free) {
+      setSelectedFloor(0);
+    }
+  };
+  
+  // Handle floor selection
+  const handleFloorSelect = (floor: number) => {
+    setSelectedFloor(floor);
+  };
+  
+  // Handle final selection confirmation
+  const handleConfirmSelection = () => {
+    onShiftChange(rowIdx, colIdx, selectedShift, selectedFloor);
+    setIsEditing(false);
+  };
+  
+  const closeMenu = () => setIsEditing(false);
+
+  return (
+    <>
+      <div
+        ref={setRef}
+        style={{
+          opacity: isDragging ? 0.5 : 1,
+          backgroundColor: value && value.shiftType ? coloriTurni[value.shiftType] : undefined,
+          cursor: "move",
+          minWidth: CELL_WIDTH,
+          maxWidth: CELL_WIDTH,
+          width: CELL_WIDTH,
+          minHeight: CELL_HEIGHT,
+          maxHeight: CELL_HEIGHT,
+          height: CELL_HEIGHT,
+          fontSize: "1.1rem",
+          padding: 0,
+          boxSizing: "border-box",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: 8,
+          fontWeight: 600,
+          userSelect: "none",
+          color: value && value.shiftType === "Free" ? "#6b7280" : "#18181b",
+          border: "1px solid #e5e7eb",
+          textAlign: "center"
+        }}
+        title={value && value.shiftType ? value.shiftType.toString() : ""}
+        onDoubleClick={handleDoubleClick}
+      >
+        {display}
+      </div>
+      
+      {isEditing && document.body && ReactDOM.createPortal(
+        <div 
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: "fixed",
+            left: `${menuPosition.x}px`,
+            top: `${menuPosition.y}px`,
+            width: "auto",
+            minWidth: CELL_WIDTH,
+            maxWidth: "250px",
+            backgroundColor: "white",
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)",
+            borderRadius: 8,
+            zIndex: 10000,
+            padding: "12px",
+            border: "2px solid #4f46e5"
+          }}
+        >
+          <div style={{ 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: 8
+          }}>
+            <div style={{ fontWeight: 700, marginBottom: "8px", color: "#4f46e5" }}>
+              Seleziona tipo turno
+            </div>
+            {shiftTypes.map(type => (
+              <button
+                key={type}
+                onClick={() => handleShiftTypeSelect(type)}
+                style={{
+                  backgroundColor: selectedShift === type ? coloriTurni[type] : "#fff",
+                  border: `1px solid ${coloriTurni[type]}`,
+                  textAlign: "center",
+                  padding: "10px 12px",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  color: type === "Free" ? "#6b7280" : "#18181b",
+                  transition: "all 0.2s ease",
+                  boxShadow: selectedShift === type ? "0 2px 5px rgba(0,0,0,0.1)" : "none"
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.1)";
+                }}
+                onMouseOut={(e) => {
+                  if (selectedShift !== type) {
+                    e.currentTarget.style.boxShadow = "none";
+                  }
+                }}
+              >
+                {type}
+              </button>
+            ))}
+            
+            {/* Floor selection - only show if not Free shift */}
+            {selectedShift !== ShiftType.Free && (
+              <>
+                <div style={{ fontWeight: 700, marginTop: "12px", marginBottom: "4px", color: "#4f46e5" }}>
+                  Seleziona piano
+                </div>
+                <div style={{ 
+                  display: "grid", 
+                  gridTemplateColumns: "repeat(3, 1fr)", 
+                  gap: "8px" 
+                }}>
+                  {floorOptions.map(floor => (
+                    <button
+                      key={floor}
+                      onClick={() => handleFloorSelect(floor)}
+                      style={{
+                        backgroundColor: selectedFloor === floor ? "#e0e7ff" : "#fff",
+                        border: "1px solid #d1d5db",
+                        textAlign: "center",
+                        padding: "8px 4px",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                        fontWeight: 600,
+                        color: "#18181b",
+                        transition: "all 0.2s ease",
+                        boxShadow: selectedFloor === floor ? "0 1px 3px rgba(0,0,0,0.1)" : "none"
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
+                      }}
+                      onMouseOut={(e) => {
+                        if (selectedFloor !== floor) {
+                          e.currentTarget.style.boxShadow = "none";
+                        }
+                      }}
+                    >
+                      {floor === 0 ? "Nessuno" : floor.toString()}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            
+            <div style={{ 
+              display: "flex", 
+              gap: "8px",
+              marginTop: "12px"
+            }}>
+              <button
+                onClick={handleConfirmSelection}
+                style={{
+                  flex: 1,
+                  padding: "8px",
+                  backgroundColor: "#4f46e5",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  color: "#ffffff",
+                  transition: "background-color 0.2s ease"
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = "#4338ca";
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = "#4f46e5";
+                }}
+              >
+                Conferma
+              </button>
+              <button
+                onClick={closeMenu}
+                style={{
+                  padding: "8px",
+                  backgroundColor: "#f5f5f5",
+                  border: "1px solid #e0e0e0",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  color: "#4b5563",
+                  transition: "background-color 0.2s ease"
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = "#e0e0e0";
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = "#f5f5f5";
+                }}
+              >
+                Chiudi
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 });
 
@@ -213,7 +527,7 @@ export default function Page() {
   const DraggableCell = memo(function DraggableCell({ rowIdx, colIdx, value, onCellDrop, coloriTurni }: any) {
     const [{ isDragging }, drag] = useDrag({
       type: "CELL",
-      item: { rowIdx, colIdx, value },
+      item: () => ({ rowIdx, colIdx, value }), // Using a function to get current value when dragging starts
       collect: (monitor) => ({
         isDragging: monitor.isDragging()
       })
@@ -271,7 +585,30 @@ export default function Page() {
     );
   });
 
-  // COLUMNS
+  function handleShiftTypeChange(rowIdx: number, colIdx: number, shiftType: ShiftType, floor: number = 0) {
+    if (colIdx === 0) return; // Skip resource name column
+    
+    const resource = resources[rowIdx];
+    const date = dateArray[colIdx - 1];
+    const oldShift = matrix[resource.id][date];
+    
+    if (!oldShift) return;
+    
+    // Create a new shift with the selected shift type and floor
+    // If shift type is Free, ensure floor is 0
+    const newShift: ResourceShift = { 
+      ...oldShift, 
+      shiftType, 
+      floor: shiftType === ShiftType.Free ? 0 : floor 
+    };
+    
+    // Update the matrix with the new shift
+    const newMatrix = { ...matrix };
+    newMatrix[resource.id] = { ...newMatrix[resource.id], [date]: newShift };
+    setMatrix(newMatrix);
+  }
+
+  // COLUMNS - Update to use the EditableCell component
   const columns = useMemo(() => [
     {
       key: "resourceName",
@@ -295,12 +632,13 @@ export default function Page() {
       name: convertDateToString(date),
       width: CELL_WIDTH,
       render: (row: any, rowIdx: number) => (
-        <DraggableCell
+        <EditableCell
           rowIdx={rowIdx}
           colIdx={colIdx + 1}
           value={row[date]}
           onCellDrop={handleCellDrop}
           coloriTurni={coloriTurni}
+          onShiftChange={handleShiftTypeChange}
         />
       )
     }))
