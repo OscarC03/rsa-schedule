@@ -9,11 +9,21 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@hello-pangea/dnd": "^18.0.1",
+    "@mui/material": "^7.1.0",
+    "@mui/x-data-grid": "^8.4.0",
+    "@tanstack/react-table": "^8.21.3",
     "axios": "^1.9.0",
     "next": "15.3.2",
     "npm": "^11.4.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-data-grid": "^7.0.0-beta.55",
+    "react-dnd": "^16.0.1",
+    "react-dnd-html5-backend": "^16.0.1",
+    "react-dom": "^19.0.0",
+    "react-virtuoso": "^4.12.7"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
