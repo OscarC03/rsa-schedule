@@ -46,7 +46,7 @@ export default function Page() {
         Morning: '#D1E7DD',    // verde chiaro
         Afternoon: '#FFE5B4', // arancio chiaro
         Split: '#CFE2FF',   // azzurro chiaro
-        Night: '#B6D7A8',      // verde più scuro
+        Night: '#638889',      // verde più scuro
         Free: '#F0F0F0',     // grigio chiaro
     };
 

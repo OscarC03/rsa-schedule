@@ -1,4 +1,4 @@
-import { Resource, ResourceShift, ShiftType } from "@/model/model";
+import { Resource, ResourceShift, ResourceType, ShiftType } from "@/model/model";
 
 export const generateShift = (startDate: Date, resources: Resource[]): ResourceShift[] => {
   const DAILY_REQUIREMENTS: Record<ShiftType, number> = {
@@ -24,7 +24,6 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
   const month = startDate.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  // Inizializza il punto nel ciclo per ogni risorsa
   const resourceCycleIndex: Record<string, number> = {};
   resources.forEach((r, i) => {
     resourceCycleIndex[r.id] = i % SHIFT_CYCLE.length;
@@ -43,13 +42,17 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
       Free: 0,
     };
 
-    // Ruota le risorse ogni giorno per distribuire equamente chi "inizia"
     const rotatedResources = rotateArray(resources, day);
 
     // Prima passata: assegna il turno del ciclo
     for (const resource of rotatedResources) {
       const cycleIdx = resourceCycleIndex[resource.id];
-      const shift = SHIFT_CYCLE[cycleIdx];
+      let shift = SHIFT_CYCLE[cycleIdx];
+
+      // Evita di assegnare il turno di notte ai part-time
+      if (shift === ShiftType.Night && isPartTime(resource)) {
+        shift = ShiftType.Free;
+      }
 
       schedule.push({
         resourceId: resource.id,
@@ -65,9 +68,13 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
     // Seconda passata: correggi se mancano turni da coprire
     for (const shiftType of ["Morning", "Afternoon", "Split", "Night"] as ShiftType[]) {
       while (dailyCount[shiftType] < DAILY_REQUIREMENTS[shiftType]) {
-        // Trova una risorsa a cui è stato assegnato "Free"
-        const free = schedule.find(
-          (s) => s.date === currentDate && s.shiftType === ShiftType.Free
+        const free = schedule.find((s) =>
+          s.date === currentDate &&
+          s.shiftType === ShiftType.Free &&
+          // Se stai cercando un turno notte, escludi i part-time
+          (shiftType !== ShiftType.Night || !isPartTime(
+            resources.find(r => r.id === s.resourceId)!
+          ))
         );
 
         if (!free) break;
@@ -82,6 +89,13 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
 
   return schedule;
 };
+
+function isPartTime(resource: Resource): boolean {
+  return (
+    resource.type === ResourceType.PART_TIME_50 ||
+    resource.type === ResourceType.PART_TIME_70
+  );
+}
 
 export function replicateScheduleForMonth(
   originalSchedule: ResourceShift[],
