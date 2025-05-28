@@ -1,6 +1,6 @@
 import { Resource, ResourceShift, ShiftType } from "@/model/model";
 
-export const GenerateShift = (startDate: Date, resources: Resource[]): ResourceShift[] => {
+export const generateShift = (startDate: Date, resources: Resource[]): ResourceShift[] => {
   const DAILY_REQUIREMENTS: Record<ShiftType, number> = {
     Morning: 5,
     Afternoon: 4,
@@ -32,7 +32,7 @@ export const GenerateShift = (startDate: Date, resources: Resource[]): ResourceS
 
   const schedule: ResourceShift[] = [];
 
-  for (let day = 0; day < daysInMonth; day++) {
+  for (let day = 1; day <= daysInMonth; day++) {
     const currentDate = new Date(year, month, day + 1).toISOString().split("T")[0];
 
     const dailyCount: Record<ShiftType, number> = {
@@ -83,6 +83,48 @@ export const GenerateShift = (startDate: Date, resources: Resource[]): ResourceS
   return schedule;
 };
 
+export function replicateScheduleForMonth(
+  originalSchedule: ResourceShift[],
+  sourceMonth: number, // 0=gennaio, 4=maggio
+  targetYear: number,
+  targetMonth: number
+): ResourceShift[] {
+  // giorni del mese target
+  const daysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+
+  // filtra la schedule base per ordinare per giorno
+  // estrai i turni raggruppati per giorno (stringa ISO)
+  const scheduleByDay: ResourceShift[][] = [];
+  const baseYear = new Date(originalSchedule[0].date).getFullYear();
+  const baseMonth = new Date(originalSchedule[0].date).getMonth();
+
+  for (let day = 1; day <= daysInTargetMonth; day++) {
+    // calcolo giorno modulo giorni mese base
+    const baseDay = ((day - 1) % (new Date(baseYear, baseMonth + 1, 0).getDate())) + 1;
+
+    // filtra i turni del baseDay
+    const dayShifts = originalSchedule.filter(s => {
+      const sDate = new Date(s.date);
+      return sDate.getFullYear() === baseYear &&
+        sDate.getMonth() === baseMonth &&
+        sDate.getDate() === baseDay;
+    });
+
+    // cambia la data al targetYear/targetMonth/day
+    const newDateStr = new Date(targetYear, targetMonth, day + 1).toISOString().split("T")[0];
+    const newDayShifts = dayShifts.map(shift => ({
+      ...shift,
+      date: newDateStr,
+    }));
+
+    scheduleByDay.push(newDayShifts);
+  }
+
+  // appiattisci e restituisci
+  return scheduleByDay.flat();
+};
+
+
 function rotateArray<T>(arr: T[], shift: number): T[] {
   const len = arr.length;
   shift = ((shift % len) + len) % len; // shift positivo modulo len
@@ -90,27 +132,3 @@ function rotateArray<T>(arr: T[], shift: number): T[] {
 }
 
 
-
-/*export const canUseResource = (resourceShifts: ResourceShift[], resource: Resource, shiftType: ShiftType, date: Date): boolean => {
-    if (resource.forbiddenShiftTypes.includes(shiftType)) {
-        return false;
-    }
-    if (resourceShifts.findIndex(e => e.date === date && e.resourceId === resource.id && e.shiftType !== ShiftType.Free) !== -1) {
-        return false;
-    }
-
-    let prevDate: Date = new Date(date.setDate(date.getDate() - 1));
-    let prevResourceShift: ResourceShift | undefined = resourceShifts.find(e => e.resourceId === resource.id && e.date === prevDate);
-    if (prevResourceShift) {
-        if ((prevResourceShift.shiftType === ShiftType.Afternoon || prevResourceShift.shiftType === ShiftType.Split) && shiftType === ShiftType.Morning) {
-            return false;
-        }
-    }
-
-    return true;
-}*/
-
-export const getDaysInMonth = (year: number, month: number): number => {
-  // month: 0 = gennaio, 1 = febbraio, ..., 11 = dicembre
-  return new Date(year, month + 1, 0).getDate();
-}
