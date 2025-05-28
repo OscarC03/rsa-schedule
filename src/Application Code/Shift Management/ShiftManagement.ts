@@ -1,105 +1,95 @@
-import { Resource, ResourceShift, Shift, ShiftType } from "@/model/model";
+import { Resource, ResourceShift, ShiftType } from "@/model/model";
 
 export const GenerateShift = (startDate: Date, resources: Resource[]): ResourceShift[] => {
-    const SHIFT_TO_FILL: Record<ShiftType, number> = {
-        Morning: 5,
-        Afternoon: 4,
-        Split: 3,
-        Night: 2,
-        Free: 0,
+  const DAILY_REQUIREMENTS: Record<ShiftType, number> = {
+    Morning: 5,
+    Afternoon: 4,
+    Split: 3,
+    Night: 2,
+    Free: 0,
+  };
+
+  const SHIFT_CYCLE: ShiftType[] = [
+    ShiftType.Morning,
+    ShiftType.Morning,
+    ShiftType.Split,
+    ShiftType.Afternoon,
+    ShiftType.Night,
+    ShiftType.Free,
+    ShiftType.Free,
+    ShiftType.Free,
+  ];
+
+  const year = startDate.getFullYear();
+  const month = startDate.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // Inizializza il punto nel ciclo per ogni risorsa
+  const resourceCycleIndex: Record<string, number> = {};
+  resources.forEach((r, i) => {
+    resourceCycleIndex[r.id] = i % SHIFT_CYCLE.length;
+  });
+
+  const schedule: ResourceShift[] = [];
+
+  for (let day = 0; day < daysInMonth; day++) {
+    const currentDate = new Date(year, month, day + 1).toISOString().split("T")[0];
+
+    const dailyCount: Record<ShiftType, number> = {
+      Morning: 0,
+      Afternoon: 0,
+      Split: 0,
+      Night: 0,
+      Free: 0,
     };
 
-    const SHIFT_SCHEME: ShiftType[] = [
-        ShiftType.Morning,
-        ShiftType.Morning,
-        ShiftType.Split,
-        ShiftType.Afternoon,
-        ShiftType.Night,
-        ShiftType.Free,
-        ShiftType.Free,
-        ShiftType.Free,
-    ];
+    // Ruota le risorse ogni giorno per distribuire equamente chi "inizia"
+    const rotatedResources = rotateArray(resources, day);
 
-    const year = startDate.getFullYear();
-    const month = startDate.getMonth();
-    const daysInMonth = getDaysInMonth(year, month);
+    // Prima passata: assegna il turno del ciclo
+    for (const resource of rotatedResources) {
+      const cycleIdx = resourceCycleIndex[resource.id];
+      const shift = SHIFT_CYCLE[cycleIdx];
 
-    let result: ResourceShift[] = [];
-    for (let day = 1; day <= daysInMonth; day++) {
-        const currDate = new Date(year, month, day).toISOString().split('T')[0];
+      schedule.push({
+        resourceId: resource.id,
+        shiftType: shift,
+        shiftCode: shift,
+        date: currentDate,
+      });
 
-        // Calcola il turno previsto per ogni risorsa quel giorno
-        const previsioneTurni: { resource: Resource; shift: ShiftType }[] = resources.map((resource, index) => {
-            const shiftIndex = ((day - 1) + (SHIFT_SCHEME.length - (index % SHIFT_SCHEME.length))) % SHIFT_SCHEME.length;
-            return { resource, shift: SHIFT_SCHEME[shiftIndex] };
-        });
-
-        // Raggruppa risorse per turno
-        const gruppi: Record<ShiftType, Resource[]> = {
-            Morning: [],
-            Afternoon: [],
-            Split: [],
-            Night: [],
-            Free: [],
-        };
-
-        previsioneTurni.forEach(({ resource, shift }) => {
-        gruppi[shift].push(resource);
-        });
-
-        // Assegna esattamente N risorse per turno, il resto a Free
-        const assegnati: ResourceShift[] = [];
-
-        // Funzione helper per assegnare max n risorse al turno
-        const assegnaRisorse = (turno: ShiftType, maxCount: number) => {
-        const daAssegnare = gruppi[turno].slice(0, maxCount);
-        daAssegnare.forEach(resource => {
-            assegnati.push({
-            resourceId: resource.id.toString(),
-            shiftCode: turno.toString(),
-            date: currDate,
-            shiftType: turno,
-            });
-        });
-        // Rimuovi le risorse assegnate da gruppi[turno]
-        gruppi[turno] = gruppi[turno].slice(maxCount);
-        };
-
-        // Assegna i turni principali con i numeri esatti
-        assegnaRisorse(ShiftType.Morning, SHIFT_TO_FILL.Morning);
-        assegnaRisorse(ShiftType.Afternoon, SHIFT_TO_FILL.Afternoon);
-        assegnaRisorse(ShiftType.Split, SHIFT_TO_FILL.Split);
-        assegnaRisorse(ShiftType.Night, SHIFT_TO_FILL.Night);
-
-        // Tutte le risorse rimaste (anche quelle che inizialmente erano Free e quelle tagliate fuori) vanno in Free
-        const risorseRimanenti = [
-        ...gruppi.Morning,
-        ...gruppi.Afternoon,
-        ...gruppi.Split,
-        ...gruppi.Night,
-        ...gruppi.Free,
-        ];
-
-        risorseRimanenti.forEach(resource => {
-        assegnati.push({
-            resourceId: resource.id.toString(),
-            shiftCode: ShiftType.Free.toString(),
-            date: currDate,
-            shiftType: ShiftType.Free,
-        });
-        });
-
-        result.push(...assegnati);
+      dailyCount[shift]++;
+      resourceCycleIndex[resource.id] = (cycleIdx + 1) % SHIFT_CYCLE.length;
     }
 
-    // Ordina per data e risorsa
-    result.sort((a, b) => {
-        if (a.date !== b.date) return a.date.localeCompare(b.date);
-        return a.resourceId.localeCompare(b.resourceId);
-    });
+    // Seconda passata: correggi se mancano turni da coprire
+    for (const shiftType of ["Morning", "Afternoon", "Split", "Night"] as ShiftType[]) {
+      while (dailyCount[shiftType] < DAILY_REQUIREMENTS[shiftType]) {
+        // Trova una risorsa a cui è stato assegnato "Free"
+        const free = schedule.find(
+          (s) => s.date === currentDate && s.shiftType === ShiftType.Free
+        );
 
-    return result;
+        if (!free) break;
+
+        free.shiftType = shiftType;
+        free.shiftCode = shiftType;
+        dailyCount[shiftType]++;
+        dailyCount[ShiftType.Free]--;
+      }
+    }
+  }
+
+  return schedule;
+};
+
+function rotateArray<T>(arr: T[], shift: number): T[] {
+  const len = arr.length;
+  shift = ((shift % len) + len) % len; // shift positivo modulo len
+  return arr.slice(shift).concat(arr.slice(0, shift));
 }
+
+
 
 /*export const canUseResource = (resourceShifts: ResourceShift[], resource: Resource, shiftType: ShiftType, date: Date): boolean => {
     if (resource.forbiddenShiftTypes.includes(shiftType)) {

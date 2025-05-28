@@ -47,3 +47,6 @@ export class ResourceShift {
     public shiftType: ShiftType = ShiftType.Morning;
     public date: string = '';
 }
+
+export type Calendar = Record<string, Record<string, ShiftType>>;
+export type DailyCount = Record<string, Record<ShiftType, number>>;
