@@ -1,12 +1,13 @@
 "use client";
 
-import { generateShift, replicateScheduleForMonth } from "@/Application Code/Shift Management/ShiftManagement";
+import { generateShift, getLastShiftIndexByResource, replicateScheduleForMonth } from "@/Application Code/Shift Management/ShiftManagement";
 import { Resource, ResourceShift, ResourceType, Shift, ShiftType } from "@/model/model";
 import { useEffect, useRef, useState } from "react";
 
 export default function Page() {
     const [shifts, setShifts] = useState<ResourceShift[]>([]);
     const shiftRef = useRef<ResourceShift[]>([]);
+    const lastShiftRef = useRef<ResourceShift[]>([]);
     const [matrix, setMatrix] = useState<Record<string, Record<string, ResourceShift>>>({});
     const [dateArray, setDateArray] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -72,9 +73,16 @@ export default function Page() {
         // Qui puoi chiamare la funzione che preferisci, ad esempio:
         // aggiornaTurniPerMese(selectedMonth);
         setIsTableLoading(true);
+        if (lastShiftRef.current.length === 0) {
+            lastShiftRef.current = shiftRef.current; // Salva i turni del mese precedente
+        }
+
         console.log("Mese selezionato:", selectedMonth);
-        const monthSchedule = replicateScheduleForMonth(shiftRef.current, 4, 2025, selectedMonth);
+        const lastShiftIndexByResource = getLastShiftIndexByResource(lastShiftRef.current);
+        console.log("Ultimo indice di turno per risorsa:", lastShiftIndexByResource);
+        const monthSchedule = replicateScheduleForMonth(shiftRef.current, resources, lastShiftIndexByResource, 2025, selectedMonth);
         console.log("Turni del mese selezionato:", monthSchedule);
+        lastShiftRef.current = monthSchedule; // Salva i turni del mese selezionato nel ref
         initSchedule(monthSchedule);
         setIsTableLoading(false);
     };

@@ -62,6 +62,7 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
         shiftCode: shift,
         date: currentDate,
         floor: 0, // da assegnare dopo
+        cycleIndex: cycleIdx,
       });
 
       dailyCount[shift]++;
@@ -156,45 +157,99 @@ function assignFloors(shifts: ResourceShift[]) {
 
 export function replicateScheduleForMonth(
   originalSchedule: ResourceShift[],
-  sourceMonth: number, // 0=gennaio, 4=maggio
+  resources: Resource[],
+  lastShiftIndexByResourceId: Record<string, number>,
   targetYear: number,
   targetMonth: number
 ): ResourceShift[] {
-  // giorni del mese target
   const daysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
 
-  // filtra la schedule base per ordinare per giorno
-  // estrai i turni raggruppati per giorno (stringa ISO)
-  const scheduleByDay: ResourceShift[][] = [];
+  const SHIFT_CYCLE: ShiftType[] = [
+    ShiftType.Morning,
+    ShiftType.Morning,
+    ShiftType.Split,
+    ShiftType.Afternoon,
+    ShiftType.Night,
+    ShiftType.Free,
+    ShiftType.Free,
+    ShiftType.Free,
+  ];
+
   const baseYear = new Date(originalSchedule[0].date).getFullYear();
   const baseMonth = new Date(originalSchedule[0].date).getMonth();
+  const baseDaysInMonth = new Date(baseYear, baseMonth + 1, 0).getDate();
+
+  const newSchedule: ResourceShift[] = [];
 
   for (let day = 1; day <= daysInTargetMonth; day++) {
-    // calcolo giorno modulo giorni mese base
-    const baseDay = ((day - 1) % (new Date(baseYear, baseMonth + 1, 0).getDate())) + 1;
+    const currentDateStr = new Date(targetYear, targetMonth, day + 1).toISOString().split("T")[0];
 
-    // filtra i turni del baseDay
-    const dayShifts = originalSchedule.filter(s => {
-      const sDate = new Date(s.date);
-      return sDate.getFullYear() === baseYear &&
-        sDate.getMonth() === baseMonth &&
-        sDate.getDate() === baseDay;
-    });
+    // Per ogni risorsa calcoliamo il turno assegnato quel giorno
+    for (const resource of resources) {
+      // indice ultimo turno fatto
+      const lastIndex = lastShiftIndexByResourceId[resource.id] ?? 0;
 
-    // cambia la data al targetYear/targetMonth/day
-    const newDateStr = new Date(targetYear, targetMonth, day + 1).toISOString().split("T")[0];
-    const newDayShifts = dayShifts.map(shift => ({
-      ...shift,
-      date: newDateStr,
-    }));
+      // calcolo indice turno per il giorno corrente:
+      // (ultimo indice + giorno corrente) modulo lunghezza ciclo
+      const cycleIdx = (lastIndex + day) % SHIFT_CYCLE.length;
+      let shift = SHIFT_CYCLE[cycleIdx];
 
-    scheduleByDay.push(newDayShifts);
+      // Skip Night se part-time
+      if (
+        shift === ShiftType.Night &&
+        (resource.type === ResourceType.PART_TIME_50 || resource.type === ResourceType.PART_TIME_70)
+      ) {
+        shift = ShiftType.Free;
+      }
+
+      newSchedule.push({
+        resourceId: resource.id,
+        shiftType: shift,
+        shiftCode: shift,
+        date: currentDateStr,
+        floor: 0,
+        cycleIndex: cycleIdx,
+      });
+    }
   }
 
-  // appiattisci e restituisci
-  return scheduleByDay.flat();
-};
+  // assegna i floor per ogni giorno
+  for (let day = 1; day <= daysInTargetMonth; day++) {
+    const dateStr = new Date(targetYear, targetMonth, day + 1).toISOString().split("T")[0];
+    const shiftsOfDay = newSchedule.filter(s => s.date === dateStr);
+    assignFloors(shiftsOfDay);
+  }
 
+  return newSchedule;
+}
+
+export function getLastShiftIndexByResource(
+  schedule: ResourceShift[]
+): Record<string, number> {
+  const lastShiftIndexByResource: Record<string, number> = {};
+
+  // ordina per data ascendente per sicurezza
+  const sortedSchedule = [...schedule].sort((a, b) => a.date.localeCompare(b.date));
+
+  // raggruppa per risorsa
+  const groupedByResource: Record<string, ResourceShift[]> = {};
+  for (const shift of sortedSchedule) {
+    if (!groupedByResource[shift.resourceId]) groupedByResource[shift.resourceId] = [];
+    groupedByResource[shift.resourceId].push(shift);
+  }
+
+  for (const [resourceId, shifts] of Object.entries(groupedByResource)) {
+    // cerca ultimo turno, anche Free
+    for (let i = shifts.length - 1; i >= 0; i--) {
+      if (shifts[i].cycleIndex !== undefined) {
+        lastShiftIndexByResource[resourceId] = shifts[i].cycleIndex;
+        break;
+      }
+    }
+  }
+
+  return lastShiftIndexByResource;
+}
 
 function rotateArray<T>(arr: T[], shift: number): T[] {
   const len = arr.length;

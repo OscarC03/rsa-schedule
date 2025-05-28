@@ -47,6 +47,7 @@ export class ResourceShift {
     public shiftType: ShiftType = ShiftType.Morning;
     public floor: number = 0;
     public date: string = '';
+    public cycleIndex: number = 0;
 }
 
 export type Calendar = Record<string, Record<string, ShiftType>>;
