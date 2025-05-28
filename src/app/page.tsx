@@ -669,80 +669,241 @@ export default function Page() {
   }
 
   if (isLoading)
-    return <div className="p-4">Caricamento in corso...</div>;
+    return (
+      <div
+        className="p-4 flex items-center justify-center min-h-[100vh] bg-gradient-to-br from-indigo-100 via-white to-blue-100"
+        style={{
+          fontSize: "1.3rem",
+          fontWeight: 600,
+          color: "#6366f1",
+          borderRadius: 0,
+          boxShadow: "none",
+          minHeight: "100vh",
+          height: "100vh",
+          width: "100vw",
+        }}
+      >
+        Caricamento in corso...
+      </div>
+    );
 
   return (
-    <div className="p-4 overflow-auto">
-      <h2 className="text-xl font-semibold mb-4">Turni OSS - Maggio 2025 (Copertura fissa)</h2>
-      {/* ComboBox dei mesi */}
-      <div className="mb-4">
-        <label htmlFor="mese" className="mr-2 font-medium">Seleziona mese:</label>
-        <select
-          id="mese"
-          className="border rounded p-2"
-          defaultValue={4}
-          onChange={handleMonthChange}
+    <div
+      className="p-0 sm:p-0 overflow-auto"
+      style={{
+        background: "linear-gradient(120deg, #f1f5f9 0%, #e0e7ff 100%)",
+        minHeight: "100vh",
+        minWidth: "100vw",
+        height: "100vh",
+        width: "100vw",
+        borderRadius: 0,
+        boxShadow: "none",
+        margin: 0,
+        position: "fixed",
+        top: 0,
+        left: 0,
+        zIndex: 0,
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <div
+        className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4"
+        style={{
+          background: "rgba(255,255,255,0.85)",
+          borderRadius: 0,
+          padding: "16px 18px",
+          boxShadow: "0 2px 8px rgba(79,70,229,0.04)",
+          position: "relative",
+          zIndex: 2,
+        }}
+      >
+        <h2
+          className="text-xl sm:text-2xl font-semibold mb-2 sm:mb-0"
+          style={{
+            color: "#3730a3",
+            letterSpacing: "0.01em",
+            textShadow: "0 1px 0 #fff, 0 2px 8px #e0e7ff",
+            lineHeight: 1.2,
+          }}
         >
-          {mesi.map(mese => (
-            <option className="text-black" key={mese.value} value={mese.value}>{mese.label}</option>
-          ))}
-        </select>
+          Turni OSS <span style={{
+            fontWeight: 400,
+            fontSize: "1rem",
+            color: "#6366f1",
+            background: "#eef2ff",
+            borderRadius: 6,
+            padding: "2px 10px",
+            marginLeft: 8,
+            letterSpacing: "0.02em"
+          }}>(Copertura fissa)</span>
+        </h2>
+        {/* ComboBox dei mesi */}
+        <div className="flex items-center gap-2">
+          <label
+            htmlFor="mese"
+            className="mr-2 font-medium"
+            style={{
+              color: "#3730a3",
+              fontSize: "1.05rem",
+              letterSpacing: "0.01em"
+            }}
+          >
+            Seleziona mese:
+          </label>
+          <select
+            id="mese"
+            className="border rounded p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all duration-150 text-base"
+            style={{
+              background: "#fff",
+              color: "#3730a3",
+              fontWeight: 500,
+              borderColor: "#c7d2fe",
+              minWidth: 120,
+              boxShadow: "0 1px 4px rgba(79,70,229,0.06)",
+              cursor: "pointer"
+            }}
+            defaultValue={4}
+            onChange={handleMonthChange}
+          >
+            {mesi.map(mese => (
+              <option className="text-black" key={mese.value} value={mese.value}>{mese.label}</option>
+            ))}
+          </select>
+        </div>
       </div>
-      {
-        !isTableLoading ?
-          <DndProvider backend={HTML5Backend}>
-            <div style={{ width: "100%", height: "80vh", background: "#fff" }}>
-              <TableVirtuoso
-                style={{ height: "100%", width: "100%" }}
-                data={rows}
-                fixedHeaderContent={() => (
-                  <tr>
-                    {columns.map((col, idx) => (
-                      <th key={col.key} style={{
-                        minWidth: CELL_WIDTH,
-                        maxWidth: CELL_WIDTH,
-                        width: CELL_WIDTH,
-                        background: "#f1f5f9",
-                        position: idx === 0 ? "sticky" : undefined,
-                        left: idx === 0 ? 0 : undefined,
-                        zIndex: idx === 0 ? 2 : 1,
-                        fontSize: "1.1rem",
-                        fontWeight: 700,
-                        color: "#18181b",
-                        height: CELL_HEIGHT,
-                        textAlign: "center"
-                      }}>
-                        {col.name}
-                      </th>
-                    ))}
-                  </tr>
-                )}
-                itemContent={(rowIdx, row) => (
-                  columns.map((col, colIdx) => (
-                    <td key={col.key} style={{
-                      minWidth: CELL_WIDTH,
-                      maxWidth: CELL_WIDTH,
-                      width: CELL_WIDTH,
-                      background: colIdx === 0 ? "#fff" : undefined,
-                      position: colIdx === 0 ? "sticky" : undefined,
-                      left: colIdx === 0 ? 0 : undefined,
-                      zIndex: colIdx === 0 ? 1 : undefined,
-                      padding: 0,
-                      height: CELL_HEIGHT,
-                      textAlign: "center",
-                      verticalAlign: "middle",
-                      overflow: "hidden"
-                    }}>
-                      {col.render ? col.render(row, rowIdx) : row[col.key]}
-                    </td>
-                  ))
-                )}
-              />
+      <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", flexDirection: "column" }}>
+        {
+          !isTableLoading ? (
+            <DndProvider backend={HTML5Backend}>
+              <div
+                style={{
+                  width: "100vw",
+                  height: "100%",
+                  background: "rgba(255,255,255,0.98)",
+                  borderRadius: 0,
+                  boxShadow: "none",
+                  overflow: "auto",
+                  padding: 0,
+                  margin: 0,
+                  flex: 1,
+                  minHeight: 0,
+                  minWidth: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <TableVirtuoso
+                  style={{
+                    height: "100%",
+                    width: "100vw",
+                    fontFamily: "inherit",
+                    fontSize: "1.05rem",
+                    background: "transparent",
+                  }}
+                  data={rows}
+                  fixedHeaderContent={() => (
+                    <tr>
+                      {columns.map((col, idx) => (
+                        <th
+                          key={col.key}
+                          style={{
+                            minWidth: CELL_WIDTH,
+                            maxWidth: CELL_WIDTH,
+                            width: CELL_WIDTH,
+                            background: "linear-gradient(90deg, #eef2ff 0%, #f1f5f9 100%)",
+                            position: idx === 0 ? "sticky" : undefined,
+                            left: idx === 0 ? 0 : undefined,
+                            zIndex: idx === 0 ? 2 : 1,
+                            fontSize: "1.1rem",
+                            fontWeight: 700,
+                            color: "#3730a3",
+                            height: CELL_HEIGHT,
+                            textAlign: "center",
+                            borderBottom: "2px solid #6366f1",
+                            borderTopLeftRadius: idx === 0 ? 0 : 0,
+                            borderTopRightRadius: idx === columns.length - 1 ? 0 : 0,
+                            boxShadow: idx === 0 ? "2px 0 8px #e0e7ff" : undefined,
+                            letterSpacing: "0.01em"
+                          }}
+                        >
+                          {col.name}
+                        </th>
+                      ))}
+                    </tr>
+                  )}
+                  itemContent={(rowIdx, row) => (
+                    columns.map((col, colIdx) => (
+                      <td
+                        key={col.key}
+                        style={{
+                          minWidth: CELL_WIDTH,
+                          maxWidth: CELL_WIDTH,
+                          width: CELL_WIDTH,
+                          background: colIdx === 0 ? "#fff" : "transparent",
+                          position: colIdx === 0 ? "sticky" : undefined,
+                          left: colIdx === 0 ? 0 : undefined,
+                          zIndex: colIdx === 0 ? 1 : undefined,
+                          padding: 0,
+                          height: CELL_HEIGHT,
+                          textAlign: "center",
+                          verticalAlign: "middle",
+                          overflow: "hidden",
+                          borderBottom: "1px solid #e5e7eb",
+                          borderRight: colIdx === columns.length - 1 ? "none" : "1px solid #e5e7eb",
+                          borderLeft: colIdx === 0 ? "none" : undefined,
+                          backgroundClip: "padding-box",
+                          transition: "background 0.2s"
+                        }}
+                      >
+                        {col.render ? col.render(row, rowIdx) : row[col.key]}
+                      </td>
+                    ))
+                  )}
+                />
+              </div>
+            </DndProvider>
+          ) : (
+            <div
+              className="p-4 flex items-center justify-center min-h-[40vh]"
+              style={{
+                fontSize: "1.2rem",
+                fontWeight: 600,
+                color: "#6366f1",
+                borderRadius: 0,
+                background: "#eef2ff",
+                boxShadow: "none",
+                minHeight: "100%",
+                height: "100%",
+                width: "100vw",
+              }}
+            >
+              Caricamento in corso...
             </div>
-          </DndProvider>
-          :
-          <div className="p-4">Caricamento in corso...</div>
-      }
+          )
+        }
+        {/* Responsive helper for mobile */}
+        <div
+          className="block sm:hidden mt-4 text-sm text-center"
+          style={{
+            color: "#6366f1",
+            background: "#f1f5f9",
+            borderRadius: 8,
+            padding: "8px 12px",
+            margin: "0 auto",
+            maxWidth: 400,
+            fontWeight: 500,
+            boxShadow: "0 1px 4px #e0e7ff",
+            position: "absolute",
+            bottom: 12,
+            left: 0,
+            right: 0,
+            zIndex: 10,
+          }}
+        >
+          <span style={{ fontWeight: 700 }}>Suggerimento:</span> Scorri orizzontalmente per vedere tutti i giorni del mese.
+        </div>
+      </div>
     </div>
   );
 }
