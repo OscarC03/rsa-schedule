@@ -7,6 +7,7 @@ import { TableVirtuoso } from "react-virtuoso";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import ReactDOM from "react-dom";
+import { useReactToPrint } from "react-to-print";
 
 // Dimensioni costanti per celle e header
 const CELL_HEIGHT = 64;
@@ -22,77 +23,6 @@ const coloriTurni: Record<ShiftType, string> = {
 };
 
 const CELL_TYPE = "CELL";
-
-const DraggableCell = memo(function DraggableCell({
-  rowIdx,
-  colIdx,
-  value,
-  onCellDrop,
-  coloriTurni
-}: {
-  rowIdx: number;
-  colIdx: number;
-  value: ResourceShift | undefined;
-  onCellDrop: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void;
-  coloriTurni: Record<ShiftType, string>;
-}) {
-  const [{ isDragging }, drag] = useDrag({
-    type: CELL_TYPE,
-    item: { rowIdx, colIdx, value },
-    collect: (monitor) => ({
-      isDragging: monitor.isDragging()
-    })
-  });
-
-  const [, drop] = useDrop({
-    accept: CELL_TYPE,
-    drop: (item: any) => {
-      if (item.rowIdx !== rowIdx || item.colIdx !== colIdx) {
-        onCellDrop(item.rowIdx, item.colIdx, rowIdx, colIdx);
-      }
-    }
-  });
-
-  let display = "";
-  if (
-    value &&
-    typeof value === "object" &&
-    value !== null &&
-    typeof value.shiftType === "string"
-  ) {
-    display = value.floor > 0
-      ? `${value.shiftType} Piano: ${value.floor}`
-      : value.shiftType;
-  }
-
-  const setRef = (node: HTMLDivElement | null) => {
-    drag(drop(node));
-  };
-
-  return (
-    <div
-      ref={setRef}
-      style={{
-        opacity: isDragging ? 0.5 : 1,
-        backgroundColor: value && typeof value === "object" && value !== null && typeof value.shiftType === "string"
-          ? coloriTurni[value.shiftType]
-          : undefined,
-        cursor: "move",
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: 4,
-        fontWeight: 500,
-        userSelect: "none"
-      }}
-      title={typeof value === "object" && value !== null && typeof value.shiftType === "string" ? value.shiftType : ""}
-    >
-      {display}
-    </div>
-  );
-});
 
 // Add this definition at the top with other constants
 const shiftTypes: ShiftType[] = [ShiftType.Morning, ShiftType.Afternoon, ShiftType.Split, ShiftType.Night, ShiftType.Free];
@@ -415,7 +345,12 @@ export default function Page() {
   const [dateArray, setDateArray] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isTableLoading, setIsTableLoading] = useState<boolean>(false);
-
+  const [selectedMonth, setSelectedMonth] = useState<number>(4);
+  const printTableRef = useRef<HTMLDivElement>(null);
+  // Aggiungi stato per controllo visibilità della tabella di stampa
+  const [isPrintingView, setIsPrintingView] = useState(false);
+  const printableTableRef = useRef<HTMLDivElement>(null);
+  
   const resources: Resource[] = [
     // 23 OSS A TEMPO PIENO
     ...Array.from({ length: 23 }, (_, i) => ({
@@ -465,6 +400,7 @@ export default function Page() {
   // Funzione chiamata al cambio mese
   const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedMonth = parseInt(e.target.value, 10);
+    setSelectedMonth(selectedMonth); // Aggiungi questa riga per tenere traccia del mese selezionato
     // Qui puoi chiamare la funzione che preferisci, ad esempio:
     // aggiornaTurniPerMese(selectedMonth);
     setIsTableLoading(true);
@@ -668,6 +604,160 @@ export default function Page() {
     setMatrix(newMatrix);
   }
 
+  // Componente tabella statica per la stampa
+  const PrintableTable = () => {
+    // Calcola la larghezza della cella per la stampa in base al numero di colonne
+    // in modo che tutto si adatti in una singola pagina
+    const printCellWidth = Math.max(30, Math.min(60, Math.floor(700 / columns.length)));
+    
+    // Mappa delle abbreviazioni per i turni
+    const abbreviations: Record<ShiftType, string> = {
+      Morning: 'M',
+      Afternoon: 'A', 
+      Split: 'S',
+      Night: 'N',
+      Free: 'F'
+    };
+    
+    // Funzione per estrarre solo il giorno dalla data (senza il mese)
+    const extractOnlyDay = (date: string): string => {
+      const currDate = new Date(date);
+      return currDate.getDate().toString(); // Ottiene solo il giorno come numero
+    };
+    
+    return (
+      <div style={{ padding: "10px", width: "100%" }}>
+        <h2 style={{ textAlign: "center", marginBottom: "12px", fontSize: "14pt" }}>
+          Turni OSS - {mesi.find(m => m.value === selectedMonth)?.label || 'Mensile'}
+        </h2>
+        
+        {/* Legenda abbreviazioni */}
+        <div style={{ textAlign: "center", marginBottom: "10px", fontSize: "8pt" }}>
+          <span style={{ marginRight: "8px" }}><strong>M</strong>=Mattina</span>
+          <span style={{ marginRight: "8px" }}><strong>A</strong>=Pomeriggio</span>
+          <span style={{ marginRight: "8px" }}><strong>S</strong>=Spezzato</span>
+          <span style={{ marginRight: "8px" }}><strong>N</strong>=Notte</span>
+          <span><strong>F</strong>=Libero</span>
+        </div>
+        
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "8pt", tableLayout: "fixed" }}>
+          <thead>
+            <tr>
+              {columns.map((col, idx) => (
+                <th
+                  key={col.key}
+                  style={{
+                    width: `${printCellWidth}px`,
+                    background: "#eef2ff",
+                    color: "#3730a3",
+                    fontWeight: 700,
+                    padding: "2px",
+                    textAlign: "center",
+                    borderBottom: "1px solid #6366f1",
+                    fontSize: "8pt",
+                    overflow: "hidden"
+                  }}
+                >
+                  {idx === 0 ? col.name : extractOnlyDay(col.key)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIdx) => (
+              <tr key={rowIdx}>
+                {columns.map((col, colIdx) => (
+                  <td
+                    key={col.key}
+                    style={{
+                      padding: "1px",
+                      textAlign: "center",
+                      borderBottom: "1px solid #e5e7eb",
+                      borderRight: "1px solid #e5e7eb",
+                      height: "20px",
+                      maxWidth: `${printCellWidth}px`,
+                      overflow: "hidden",
+                      whiteSpace: "nowrap"
+                    }}
+                  >
+                    {colIdx === 0 ? (
+                      <span style={{
+                        fontWeight: 700,
+                        fontSize: "8pt",
+                        color: "#18181b"
+                      }}>{row[col.key]}</span>
+                    ) : (
+                      <div style={{
+                        backgroundColor: row[col.key]?.shiftType ? coloriTurni[row[col.key].shiftType as ShiftType] : undefined,
+                        height: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: row[col.key]?.shiftType === "Free" ? "#6b7280" : "#18181b",
+                        fontWeight: 600,
+                        fontSize: "8pt"
+                      }}>
+                        {row[col.key]?.shiftType ? 
+                          // Usa solo l'iniziale del tipo di turno e il piano se presente
+                          row[col.key].floor > 0
+                            ? `${abbreviations[row[col.key].shiftType as ShiftType]}${row[col.key].floor}`
+                            : abbreviations[row[col.key].shiftType as ShiftType]
+                          : ""}
+                      </div>
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  // Funzione di stampa migliorata
+  const handlePrint = useReactToPrint({
+    contentRef: printableTableRef,
+    documentTitle: `Turni OSS - ${mesi.find(m => m.value === selectedMonth)?.label || 'Mensile'}`,
+    onBeforePrint: () => {
+      setIsPrintingView(true);
+      return Promise.resolve();
+    },
+    onAfterPrint: () => {
+      setIsPrintingView(false);
+    },
+    pageStyle: `
+      @page {
+        size: landscape;
+        margin: 4mm;
+      }
+      @media print {
+        body {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        table {
+          width: 100% !important;
+          table-layout: fixed !important;
+          font-size: 7pt !important;
+        }
+        th, td {
+          padding: 1px !important;
+          overflow: hidden !important;
+          white-space: nowrap !important;
+          text-overflow: ellipsis !important;
+        }
+        h2 {
+          margin-top: 0 !important;
+          margin-bottom: 5px !important;
+        }
+        div {
+          page-break-inside: avoid !important;
+        }
+      }
+    `,
+  });
+
   if (isLoading)
     return (
       <div
@@ -707,6 +797,7 @@ export default function Page() {
         flexDirection: "column",
       }}
     >
+      {/* ComboBox dei mesi e pulsante stampa */}
       <div
         className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4"
         style={{
@@ -738,8 +829,7 @@ export default function Page() {
             letterSpacing: "0.02em"
           }}>(Copertura fissa)</span>
         </h2>
-        {/* ComboBox dei mesi */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           <label
             htmlFor="mese"
             className="mr-2 font-medium"
@@ -770,13 +860,44 @@ export default function Page() {
               <option className="text-black" key={mese.value} value={mese.value}>{mese.label}</option>
             ))}
           </select>
+          
+          {/* Pulsante per la stampa */}
+          <button
+            onClick={handlePrint}
+            className="ml-2 flex items-center justify-center gap-1 px-4 py-2 rounded transition-all duration-200"
+            style={{
+              background: "#4f46e5",
+              color: "white",
+              fontWeight: 600,
+              boxShadow: "0 1px 4px rgba(79,70,229,0.2)",
+              border: "none",
+              cursor: "pointer",
+              minHeight: 40
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = "#4338ca";
+              e.currentTarget.style.boxShadow = "0 2px 6px rgba(79,70,229,0.3)";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = "#4f46e5";
+              e.currentTarget.style.boxShadow = "0 1px 4px rgba(79,70,229,0.2)";
+            }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M5 1a2 2 0 0 0-2 2v1h10V3a2 2 0 0 0-2-2H5zm6 8H5a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1z" />
+              <path d="M0 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-1v-2a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v2H2a2 2 0 0 1-2-2V7zm2.5 1a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z" />
+            </svg>
+            Stampa orario
+          </button>
         </div>
       </div>
+
       <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", flexDirection: "column" }}>
         {
           !isTableLoading ? (
             <DndProvider backend={HTML5Backend}>
               <div
+                ref={printTableRef}
                 style={{
                   width: "100vw",
                   height: "100%",
@@ -902,6 +1023,13 @@ export default function Page() {
           }}
         >
           <span style={{ fontWeight: 700 }}>Suggerimento:</span> Scorri orizzontalmente per vedere tutti i giorni del mese.
+        </div>
+      </div>
+      
+      {/* Tabella nascosta per la stampa */}
+      <div style={{ display: "none" }}>
+        <div ref={printableTableRef}>
+          <PrintableTable />
         </div>
       </div>
     </div>
