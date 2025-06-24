@@ -931,10 +931,15 @@ export default function Page() {
     const fromDate = dateArray[fromCol - 1];
     const toDate = dateArray[toCol - 1];
 
+    // Deep copy solo delle righe coinvolte
     const newMatrix = { ...matrix };
+    newMatrix[fromResource.id] = { ...newMatrix[fromResource.id] };
+    newMatrix[toResource.id] = { ...newMatrix[toResource.id] };
+
     const temp = newMatrix[fromResource.id][fromDate];
     newMatrix[fromResource.id][fromDate] = newMatrix[toResource.id][toDate];
     newMatrix[toResource.id][toDate] = temp;
+
     setMatrix(newMatrix);
     saveMatrixToLocalStorage(newMatrix, selectedYear, selectedMonth);
   }
@@ -963,8 +968,10 @@ export default function Page() {
       absenceHours: absence ? absenceHours : undefined
     };
 
+    // Deep copy della riga della risorsa
     const newMatrix = { ...matrix };
     newMatrix[resource.id] = { ...newMatrix[resource.id], [date]: newShift };
+
     setMatrix(newMatrix);
     saveMatrixToLocalStorage(newMatrix, selectedYear, selectedMonth);
   }
