@@ -35,6 +35,16 @@ const shiftTypes: ShiftType[] = [
   ShiftType.Free
 ];
 
+// Mappa dei nomi italiani per la visualizzazione
+const italianNames: Record<ShiftType, string> = {
+  Morning: 'Mattina',
+  MorningI: 'Mattina Inf.',
+  Afternoon: 'Pomeriggio',
+  Split: 'Spezzato',
+  Night: 'Notte',
+  Free: 'Riposo'
+};
+
 // Add this new component for editable cells with double-click functionality
 const EditableCell = memo(function EditableCell({
   rowIdx,
@@ -79,6 +89,7 @@ const EditableCell = memo(function EditableCell({
   // Floor options - changed to only 4 floors
   const floorOptions = [0, 1, 2, 3, 4];
 
+  // Visualizzazione nome turno e piano in italiano nella cella
   let display = "";
   if (
     value &&
@@ -86,9 +97,10 @@ const EditableCell = memo(function EditableCell({
     value !== null &&
     typeof value.shiftType === "string"
   ) {
+    const name = italianNames[value.shiftType as ShiftType] || value.shiftType;
     display = value.floor > 0
-      ? `${value.shiftType} Piano: ${value.floor}`
-      : value.shiftType;
+      ? `${name} (${value.floor})`
+      : name;
   }
 
   const setRef = (node: HTMLDivElement | null) => {
