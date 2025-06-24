@@ -109,13 +109,12 @@ const EditableCell = memo(function EditableCell({
     if (value.absence) {
       // Se ci sono ore di assenza parziali (<8), mostra sia turno che assenza
       if (typeof value.absenceHours === "number" && value.absenceHours > 0 && value.absenceHours < 8) {
-        // Mostra turno (se non Riposo) + assenza parziale
-        if (value.shiftType && value.shiftType !== ShiftType.Free) {
+        // Mostra turno (anche Riposo) + assenza parziale
+        if (value.shiftType) {
           const name = italianNames[value.shiftType as ShiftType] || value.shiftType;
           display = value.floor > 0 ? `${name} (${value.floor})` : name;
           display += ` + ${italianNames[value.absence] || value.absence} (${value.absenceHours}h)`;
         } else {
-          // Se turno è Riposo, mostra solo assenza parziale
           display = `${italianNames[value.absence] || value.absence} (${value.absenceHours}h)`;
         }
       } else {
@@ -125,7 +124,8 @@ const EditableCell = memo(function EditableCell({
           display += ` (${value.absenceHours}h)`;
         }
       }
-    } else if (typeof value.shiftType === "string" && value.shiftType !== ShiftType.Free) {
+    } else if (typeof value.shiftType === "string") {
+      // Mostra sempre il turno, anche "Riposo"
       const name = italianNames[value.shiftType as ShiftType] || value.shiftType;
       display = value.floor > 0 ? `${name} (${value.floor})` : name;
     }
@@ -1055,13 +1055,12 @@ export default function Page() {
                         fontWeight: 600,
                         fontSize: "8pt"
                       }}>
-                        {/* Visualizzazione logica come sopra */}
                         {row[col.key]?.absence ? (
-                          // Se assenza parziale (<8h), mostra turno + assenza
+                          // Se assenza parziale (<8h), mostra turno (anche Riposo) + assenza
                           (typeof row[col.key].absenceHours === "number" && row[col.key].absenceHours > 0 && row[col.key].absenceHours < 8)
                             ? (
                               <>
-                                {row[col.key].shiftType && row[col.key].shiftType !== ShiftType.Free
+                                {row[col.key].shiftType
                                   ? (row[col.key].floor > 0
                                       ? `${abbreviations[row[col.key].shiftType]}${row[col.key].floor} + `
                                       : `${abbreviations[row[col.key].shiftType]} + `)
@@ -1079,7 +1078,7 @@ export default function Page() {
                               </>
                             )
                         ) : (
-                          row[col.key]?.shiftType && row[col.key].shiftType !== ShiftType.Free
+                          row[col.key]?.shiftType
                             ? (row[col.key].floor > 0
                                 ? `${abbreviations[row[col.key].shiftType]}${row[col.key].floor}`
                                 : abbreviations[row[col.key].shiftType])
