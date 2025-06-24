@@ -108,41 +108,12 @@ const EditableCell = memo(function EditableCell({
     drag(drop(node));
   };
 
+  // Apri il pannello laterale a destra invece che posizionare il menu vicino alla cella
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    // Get position for the menu
-    const rect = e.currentTarget.getBoundingClientRect();
-    
-    // Set initial values based on current cell value
     setSelectedShift(value?.shiftType || ShiftType.Free);
     setSelectedFloor(value?.floor || 0);
-    
-    // Calculate position with awareness of window boundaries
-    const menuWidth = Math.max(CELL_WIDTH, 200); // Slightly increased for floor selection
-    
-    // Check if menu would overflow right edge of window
-    const rightOverflow = (rect.left + menuWidth) > window.innerWidth;
-    
-    // Position the menu either to right or left of the click depending on space
-    const xPos = rightOverflow ? 
-      Math.max(5, rect.right - menuWidth) : // If overflow, align to right edge of cell
-      rect.left;
-    
-    // Check if menu would overflow bottom edge (assuming ~280px height with floor selection)
-    const menuHeight = 280;
-    const bottomOverflow = (rect.bottom + menuHeight) > window.innerHeight;
-    
-    const yPos = bottomOverflow ?
-      Math.max(5, rect.top - menuHeight) : // If overflow, place above the cell
-      rect.bottom;
-    
-    setMenuPosition({
-      x: xPos,
-      y: yPos
-    });
-    
     setIsEditing(true);
   };
   
@@ -206,33 +177,65 @@ const EditableCell = memo(function EditableCell({
       >
         {display}
       </div>
-      
       {isEditing && document.body && ReactDOM.createPortal(
         <div 
           onClick={e => e.stopPropagation()}
           style={{
             position: "fixed",
-            left: `${menuPosition.x}px`,
-            top: `${menuPosition.y}px`,
-            width: "auto",
-            minWidth: CELL_WIDTH,
-            maxWidth: "250px",
+            top: 0,
+            right: 0,
+            height: "100vh",
+            width: "min(98vw, 350px)",
+            maxWidth: 400,
+            minWidth: 220,
             backgroundColor: "white",
-            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.25)",
-            borderRadius: 8,
+            boxShadow: "-4px 0 24px rgba(0,0,0,0.18)",
+            // borderTopLeftRadius: 12,
+            // borderBottomLeftRadius: 12,
             zIndex: 10000,
-            padding: "12px",
-            border: "2px solid #4f46e5"
+            padding: "24px 18px 18px 18px",
+            borderLeft: "2px solid #4f46e5",
+            boxSizing: "border-box",
+            display: "flex",
+            flexDirection: "column",
+            overflowY: "auto"
           }}
         >
-          <div style={{ 
-            display: "flex", 
-            flexDirection: "column", 
-            gap: 8
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 16
           }}>
-            <div style={{ fontWeight: 700, marginBottom: "8px", color: "#4f46e5" }}>
-              Seleziona tipo turno
+            <div style={{ fontWeight: 700, fontSize: "1.2rem", color: "#4f46e5" }}>
+              Modifica turno
             </div>
+            <button
+              onClick={closeMenu}
+              style={{
+                background: "none",
+                border: "none",
+                fontSize: "1.7rem",
+                color: "#6366f1",
+                cursor: "pointer",
+                marginLeft: 8,
+                lineHeight: 1
+              }}
+              aria-label="Chiudi"
+              title="Chiudi"
+            >
+              &times;
+            </button>
+          </div>
+          <div style={{ fontWeight: 700, marginBottom: "8px", color: "#4f46e5" }}>
+            Seleziona tipo turno
+          </div>
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            marginBottom: 16
+          }}>
             {shiftTypes.map(type => (
               <button
                 key={type}
@@ -247,7 +250,9 @@ const EditableCell = memo(function EditableCell({
                   fontWeight: 600,
                   color: type === "Free" ? "#6b7280" : "#18181b",
                   transition: "all 0.2s ease",
-                  boxShadow: selectedShift === type ? "0 2px 5px rgba(0,0,0,0.1)" : "none"
+                  boxShadow: selectedShift === type ? "0 2px 5px rgba(0,0,0,0.1)" : "none",
+                  width: "100%",
+                  fontSize: "1rem"
                 }}
                 onMouseOver={(e) => {
                   e.currentTarget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.1)";
@@ -258,102 +263,105 @@ const EditableCell = memo(function EditableCell({
                   }
                 }}
               >
-                {type}
+                {italianNames[type] || type}
               </button>
             ))}
-            
-            {/* Floor selection - only show if not Free shift and not MorningI */}
-            {selectedShift !== ShiftType.Free && selectedShift !== ShiftType.MorningI && (
-              <>
-                <div style={{ fontWeight: 700, marginTop: "12px", marginBottom: "4px", color: "#4f46e5" }}>
-                  Seleziona piano
-                </div>
-                <div style={{ 
-                  display: "grid", 
-                  gridTemplateColumns: "repeat(3, 1fr)", 
-                  gap: "8px" 
-                }}>
-                  {floorOptions.map(floor => (
-                    <button
-                      key={floor}
-                      onClick={() => handleFloorSelect(floor)}
-                      style={{
-                        backgroundColor: selectedFloor === floor ? "#e0e7ff" : "#fff",
-                        border: "1px solid #d1d5db",
-                        textAlign: "center",
-                        padding: "8px 4px",
-                        borderRadius: 6,
-                        cursor: "pointer",
-                        fontWeight: 600,
-                        color: "#18181b",
-                        transition: "all 0.2s ease",
-                        boxShadow: selectedFloor === floor ? "0 1px 3px rgba(0,0,0,0.1)" : "none"
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
-                      }}
-                      onMouseOut={(e) => {
-                        if (selectedFloor !== floor) {
-                          e.currentTarget.style.boxShadow = "none";
-                        }
-                      }}
-                    >
-                      {floor === 0 ? "Nessuno" : floor.toString()}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-            
-            <div style={{ 
-              display: "flex", 
-              gap: "8px",
-              marginTop: "12px"
-            }}>
-              <button
-                onClick={handleConfirmSelection}
-                style={{
-                  flex: 1,
-                  padding: "8px",
-                  backgroundColor: "#4f46e5",
-                  border: "none",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  fontWeight: 600,
-                  color: "#ffffff",
-                  transition: "background-color 0.2s ease"
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.backgroundColor = "#4338ca";
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.backgroundColor = "#4f46e5";
-                }}
-              >
-                Conferma
-              </button>
-              <button
-                onClick={closeMenu}
-                style={{
-                  padding: "8px",
-                  backgroundColor: "#f5f5f5",
-                  border: "1px solid #e0e0e0",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  fontWeight: 600,
-                  color: "#4b5563",
-                  transition: "background-color 0.2s ease"
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.backgroundColor = "#e0e0e0";
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.backgroundColor = "#f5f5f5";
-                }}
-              >
-                Chiudi
-              </button>
-            </div>
+          </div>
+          {/* Floor selection - solo se non Free e non MorningI */}
+          {selectedShift !== ShiftType.Free && selectedShift !== ShiftType.MorningI && (
+            <>
+              <div style={{ fontWeight: 700, marginTop: "12px", marginBottom: "4px", color: "#4f46e5" }}>
+                Seleziona piano
+              </div>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: "8px",
+                marginBottom: 16
+              }}>
+                {floorOptions.map(floor => (
+                  <button
+                    key={floor}
+                    onClick={() => handleFloorSelect(floor)}
+                    style={{
+                      backgroundColor: selectedFloor === floor ? "#e0e7ff" : "#fff",
+                      border: "1px solid #d1d5db",
+                      textAlign: "center",
+                      padding: "8px 4px",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      fontWeight: 600,
+                      color: "#18181b",
+                      transition: "all 0.2s ease",
+                      boxShadow: selectedFloor === floor ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                      width: "100%",
+                      fontSize: "1rem"
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
+                    }}
+                    onMouseOut={(e) => {
+                      if (selectedFloor !== floor) {
+                        e.currentTarget.style.boxShadow = "none";
+                      }
+                    }}
+                  >
+                    {floor === 0 ? "Nessuno" : floor.toString()}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          <div style={{
+            display: "flex",
+            gap: "8px",
+            marginTop: "auto"
+          }}>
+            <button
+              onClick={handleConfirmSelection}
+              style={{
+                flex: 1,
+                padding: "10px",
+                backgroundColor: "#4f46e5",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontWeight: 600,
+                color: "#ffffff",
+                fontSize: "1.1rem",
+                transition: "background-color 0.2s ease"
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.backgroundColor = "#4338ca";
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.backgroundColor = "#4f46e5";
+              }}
+            >
+              Conferma
+            </button>
+            <button
+              onClick={closeMenu}
+              style={{
+                padding: "10px",
+                backgroundColor: "#f5f5f5",
+                border: "1px solid #e0e0e0",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontWeight: 600,
+                color: "#4b5563",
+                fontSize: "1.1rem",
+                transition: "background-color 0.2s ease"
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.backgroundColor = "#e0e0e0";
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.backgroundColor = "#f5f5f5";
+              }}
+            >
+              Chiudi
+            </button>
           </div>
         </div>,
         document.body
