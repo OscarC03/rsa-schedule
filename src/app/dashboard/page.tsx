@@ -1165,7 +1165,7 @@ export default function Page() {
     `,
   });
 
-  // --- EXPORT/IMPORT LOGIC ---
+  // --- EXPORT/IMPORT/RESET LOGIC ---
 
   // Esporta tutti i dati dei turni dal localStorage in un file JSON
   function handleExportShifts() {
@@ -1206,7 +1206,8 @@ export default function Page() {
               localStorage.setItem(key, JSON.stringify(value));
             }
           });
-          alert("Importazione completata! Ricarica la pagina per vedere i dati importati.");
+          alert("Importazione completata!");
+          window.location.reload();
         } else {
           alert("File non valido.");
         }
@@ -1217,6 +1218,16 @@ export default function Page() {
     reader.readAsText(file);
     // Reset input per permettere re-import dello stesso file
     e.target.value = "";
+  }
+
+  // Reset di tutti i dati dei turni dal localStorage
+  function handleResetShifts() {
+    if (window.confirm("Sei sicuro di voler cancellare tutti i turni salvati? L'operazione è irreversibile.")) {
+      const allKeys = Object.keys(localStorage).filter(k => k.startsWith("rsa-schedule-matrix-"));
+      allKeys.forEach(key => localStorage.removeItem(key));
+      alert("Tutti i turni sono stati rimossi dal localStorage.");
+      window.location.reload();
+    }
   }
 
   if (isLoading)
@@ -1414,6 +1425,35 @@ export default function Page() {
               tabIndex={-1}
             />
           </label>
+
+          {/* Pulsante reset turni */}
+          <button
+            onClick={handleResetShifts}
+            className="ml-2 flex items-center justify-center gap-1 px-4 py-2 rounded transition-all duration-200"
+            style={{
+              background: "#ef4444",
+              color: "white",
+              fontWeight: 600,
+              boxShadow: "0 1px 4px rgba(239,68,68,0.15)",
+              border: "none",
+              cursor: "pointer",
+              minHeight: 40
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = "#dc2626";
+              e.currentTarget.style.boxShadow = "0 2px 6px rgba(239,68,68,0.25)";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = "#ef4444";
+              e.currentTarget.style.boxShadow = "0 1px 4px rgba(239,68,68,0.15)";
+            }}
+            title="Resetta tutti i turni salvati"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M2.5 2.5a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-11zm1 .5v10h9v-10h-9zm2 2a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0v-6zm3 0a.5.5 0 0 1 1 0v6a.5.5 0 0 1-1 0v-6z"/>
+            </svg>
+            Resetta turni
+          </button>
         </div>
       </div>
 
