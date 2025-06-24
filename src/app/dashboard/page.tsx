@@ -16,6 +16,7 @@ const CELL_WIDTH = 140;
 // Colori pastello per i turni
 const coloriTurni: Record<ShiftType, string> = {
   Morning: '#b7eacb',    // verde pastello
+  MorningI: '#a3e3e6',   // azzurro-verde per MorningI
   Afternoon: '#ffe5b4',  // arancio pastello
   Split: '#b4d8ff',      // azzurro pastello
   Night: '#c7bfff',      // viola pastello
@@ -25,7 +26,14 @@ const coloriTurni: Record<ShiftType, string> = {
 const CELL_TYPE = "CELL";
 
 // Add this definition at the top with other constants
-const shiftTypes: ShiftType[] = [ShiftType.Morning, ShiftType.Afternoon, ShiftType.Split, ShiftType.Night, ShiftType.Free];
+const shiftTypes: ShiftType[] = [
+  ShiftType.Morning,
+  ShiftType.MorningI,
+  ShiftType.Afternoon,
+  ShiftType.Split,
+  ShiftType.Night,
+  ShiftType.Free
+];
 
 // Add this new component for editable cells with double-click functionality
 const EditableCell = memo(function EditableCell({
@@ -143,7 +151,12 @@ const EditableCell = memo(function EditableCell({
   
   // Handle final selection confirmation
   const handleConfirmSelection = () => {
-    onShiftChange(rowIdx, colIdx, selectedShift, selectedFloor);
+    onShiftChange(
+      rowIdx,
+      colIdx,
+      selectedShift,
+      selectedShift === ShiftType.MorningI || selectedShift === ShiftType.Free ? 0 : selectedFloor
+    );
     setIsEditing(false);
   };
   
@@ -237,8 +250,8 @@ const EditableCell = memo(function EditableCell({
               </button>
             ))}
             
-            {/* Floor selection - only show if not Free shift */}
-            {selectedShift !== ShiftType.Free && (
+            {/* Floor selection - only show if not Free shift and not MorningI */}
+            {selectedShift !== ShiftType.Free && selectedShift !== ShiftType.MorningI && (
               <>
                 <div style={{ fontWeight: 700, marginTop: "12px", marginBottom: "4px", color: "#4f46e5" }}>
                   Seleziona piano
@@ -802,6 +815,7 @@ export default function Page() {
     // Mappa delle abbreviazioni per i turni
     const abbreviations: Record<ShiftType, string> = {
       Morning: 'M',
+      MorningI: 'MI',
       Afternoon: 'A', 
       Split: 'S',
       Night: 'N',
@@ -823,6 +837,7 @@ export default function Page() {
         {/* Legenda abbreviazioni */}
         <div style={{ textAlign: "center", marginBottom: "10px", fontSize: "8pt" }}>
           <span style={{ marginRight: "8px" }}><strong>M</strong>=Mattina</span>
+          <span style={{ marginRight: "8px" }}><strong>MI</strong>=Mattina Inf.</span>
           <span style={{ marginRight: "8px" }}><strong>A</strong>=Pomeriggio</span>
           <span style={{ marginRight: "8px" }}><strong>S</strong>=Spezzato</span>
           <span style={{ marginRight: "8px" }}><strong>N</strong>=Notte</span>

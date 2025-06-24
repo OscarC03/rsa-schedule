@@ -3,6 +3,7 @@ import { Resource, ResourceShift, ResourceType, ShiftType } from "@/model/model"
 export const generateShift = (startDate: Date, resources: Resource[]): ResourceShift[] => {
   const DAILY_REQUIREMENTS: Record<ShiftType, number> = {
     Morning: 5,
+    MorningI: 0, // MorningI conteggiato insieme a Morning
     Afternoon: 4,
     Split: 3,
     Night: 2,
@@ -36,6 +37,7 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
 
     const dailyCount: Record<ShiftType, number> = {
       Morning: 0,
+      MorningI: 0,
       Afternoon: 0,
       Split: 0,
       Night: 0,
@@ -44,6 +46,8 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
 
     const rotatedResources = rotateArray(resources, day);
 
+    // --- Assegna i turni secondo il ciclo, ma il primo Morning del giorno diventa MorningI ---
+    let morningIToAssign = 1; // solo uno per giorno
     for (const resource of rotatedResources) {
       const cycleIdx = resourceCycleIndex[resource.id];
       let shift = SHIFT_CYCLE[cycleIdx];
@@ -56,6 +60,12 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
         shift = ShiftType.Free;
       }
 
+      // Se il turno è Morning e non abbiamo ancora assegnato MorningI, assegna MorningI
+      if (shift === ShiftType.Morning && morningIToAssign > 0) {
+        shift = ShiftType.MorningI;
+        morningIToAssign--;
+      }
+
       schedule.push({
         resourceId: resource.id,
         shiftType: shift,
@@ -65,12 +75,21 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
         cycleIndex: cycleIdx,
       });
 
-      dailyCount[shift]++;
+      if (shift === ShiftType.MorningI) {
+        dailyCount[ShiftType.MorningI]++;
+        dailyCount[ShiftType.Morning]++;
+      } else {
+        dailyCount[shift]++;
+      }
       resourceCycleIndex[resource.id] = (cycleIdx + 1) % SHIFT_CYCLE.length;
     }
 
     for (const shiftType of ["Morning", "Afternoon", "Split", "Night"] as ShiftType[]) {
-      while (dailyCount[shiftType] < DAILY_REQUIREMENTS[shiftType]) {
+      while (
+        shiftType === ShiftType.Morning
+          ? (dailyCount[ShiftType.Morning] < DAILY_REQUIREMENTS[ShiftType.Morning])
+          : (dailyCount[shiftType] < DAILY_REQUIREMENTS[shiftType])
+      ) {
         const free = schedule.find(
           (s) =>
             s.date === currentDate &&
@@ -83,9 +102,14 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
 
         if (!free) break;
 
+        // Se stai assegnando Morning, non assegnare MorningI (già assegnato)
         free.shiftType = shiftType;
         free.shiftCode = shiftType;
-        dailyCount[shiftType]++;
+        if (shiftType === ShiftType.Morning) {
+          dailyCount[ShiftType.Morning]++;
+        } else {
+          dailyCount[shiftType]++;
+        }
         dailyCount[ShiftType.Free]--;
       }
     }
@@ -113,10 +137,12 @@ function assignFloors(shifts: ResourceShift[]) {
     return arr.slice(shift).concat(arr.slice(0, shift));
   };
 
+  // Morning: solo quelli che NON sono MorningI
   const morningShifts = rotate(
     shifts.filter(s => s.shiftType === ShiftType.Morning).sort(sortByResourceId),
     weekIndex
   );
+  const morningIShifts = shifts.filter(s => s.shiftType === ShiftType.MorningI); // MorningI separati
   const afternoonShifts = rotate(
     shifts.filter(s => s.shiftType === ShiftType.Afternoon).sort(sortByResourceId),
     weekIndex
@@ -134,6 +160,11 @@ function assignFloors(shifts: ResourceShift[]) {
     }
   }
 
+  // MorningI: nessun piano
+  morningIShifts.forEach(s => {
+    s.floor = 0;
+  });
+
   // Afternoon: one for each floor 1-4
   afternoonShifts.forEach((s, idx) => {
     s.floor = (idx % 4) + 1;
@@ -147,9 +178,12 @@ function assignFloors(shifts: ResourceShift[]) {
     }
   }
 
-  // Night and Free: no floor
+  // Night, Free, MorningI: no floor (MorningI già gestito sopra)
   shifts.forEach(s => {
-    if (s.shiftType === ShiftType.Night || s.shiftType === ShiftType.Free) {
+    if (
+      s.shiftType === ShiftType.Night ||
+      s.shiftType === ShiftType.Free
+    ) {
       s.floor = 0;
     }
   });

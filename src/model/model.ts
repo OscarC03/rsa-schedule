@@ -1,4 +1,3 @@
-
 export class Resource {
     public id: string = '';
     public firstName: string = "";
@@ -35,6 +34,7 @@ export class Shift {
 
 export enum ShiftType {
     Morning = 'Morning',
+    MorningI = 'MorningI', // aggiunto
     Split = 'Split',
     Afternoon = 'Afternoon',
     Night = 'Night',
