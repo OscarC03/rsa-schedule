@@ -71,7 +71,7 @@ const EditableCell = memo(function EditableCell({
   value: ResourceShift | undefined;
   onCellDrop: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void;
   coloriTurni: Record<string, string>;
-  onShiftChange: (rowIdx: number, colIdx: number, shiftType: ShiftType, floor: number, absence?: AbsenceType) => void;
+  onShiftChange: (rowIdx: number, colIdx: number, shiftType: ShiftType, floor: number, absence?: AbsenceType, absenceHours?: number) => void;
 }) {
   const [{ isDragging }, drag] = useDrag({
     type: CELL_TYPE,
@@ -98,6 +98,7 @@ const EditableCell = memo(function EditableCell({
   const [selectedShift, setSelectedShift] = useState<ShiftType>(value?.shiftType || ShiftType.Free);
   const [selectedFloor, setSelectedFloor] = useState<number>(value?.floor || 0);
   const [selectedAbsence, setSelectedAbsence] = useState<AbsenceType | undefined>(value?.absence);
+  const [absenceHours, setAbsenceHours] = useState<number | undefined>(value?.absenceHours);
 
   // Floor options - changed to only 4 floors
   const floorOptions = [0, 1, 2, 3, 4];
@@ -106,8 +107,25 @@ const EditableCell = memo(function EditableCell({
   let display = "";
   if (value && typeof value === "object" && value !== null) {
     if (value.absence) {
-      display = italianNames[value.absence] || value.absence;
-    } else if (typeof value.shiftType === "string") {
+      // Se ci sono ore di assenza parziali (<8), mostra sia turno che assenza
+      if (typeof value.absenceHours === "number" && value.absenceHours > 0 && value.absenceHours < 8) {
+        // Mostra turno (se non Riposo) + assenza parziale
+        if (value.shiftType && value.shiftType !== ShiftType.Free) {
+          const name = italianNames[value.shiftType as ShiftType] || value.shiftType;
+          display = value.floor > 0 ? `${name} (${value.floor})` : name;
+          display += ` + ${italianNames[value.absence] || value.absence} (${value.absenceHours}h)`;
+        } else {
+          // Se turno è Riposo, mostra solo assenza parziale
+          display = `${italianNames[value.absence] || value.absence} (${value.absenceHours}h)`;
+        }
+      } else {
+        // Se non sono specificate le ore o sono 8, mostra solo assenza (tutto il giorno)
+        display = `${italianNames[value.absence] || value.absence}`;
+        if (typeof value.absenceHours === "number" && value.absenceHours > 0) {
+          display += ` (${value.absenceHours}h)`;
+        }
+      }
+    } else if (typeof value.shiftType === "string" && value.shiftType !== ShiftType.Free) {
       const name = italianNames[value.shiftType as ShiftType] || value.shiftType;
       display = value.floor > 0 ? `${name} (${value.floor})` : name;
     }
@@ -141,8 +159,10 @@ const EditableCell = memo(function EditableCell({
   // Handle absence selection
   const handleAbsenceSelect = (absence: AbsenceType) => {
     setSelectedAbsence(absence);
-    setSelectedShift(ShiftType.Free);
+    // Non cambiare il turno selezionato, lascia quello già presente
+    // setSelectedShift(ShiftType.Free); // RIMUOVI questa riga!
     setSelectedFloor(0);
+    setAbsenceHours(undefined); // reset ore assenza
   };
   
   // Handle floor selection
@@ -157,7 +177,8 @@ const EditableCell = memo(function EditableCell({
       colIdx,
       selectedShift,
       (selectedShift === ShiftType.MorningI || selectedShift === ShiftType.Free || selectedAbsence) ? 0 : selectedFloor,
-      selectedAbsence
+      selectedAbsence,
+      selectedAbsence ? absenceHours : undefined
     );
     setIsEditing(false);
   };
@@ -330,6 +351,27 @@ const EditableCell = memo(function EditableCell({
                 {italianNames[type] || type}
               </button>
             ))}
+            {/* Campo input per le ore di assenza */}
+            {selectedAbsence && (
+              <input
+                type="number"
+                min={1}
+                max={8}
+                step={1}
+                value={absenceHours ?? ""}
+                onChange={e => setAbsenceHours(Number(e.target.value))}
+                placeholder="Ore assenza"
+                style={{
+                  marginTop: 8,
+                  padding: "8px",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  fontSize: "1rem",
+                  width: "100%",
+                  boxSizing: "border-box"
+                }}
+              />
+            )}
           </div>
           {/* Floor selection - solo se non Free, non MorningI e nessuna assenza */}
           {selectedShift !== ShiftType.Free && selectedShift !== ShiftType.MorningI && !selectedAbsence && (
@@ -816,24 +858,26 @@ export default function Page() {
     colIdx: number,
     shiftType: ShiftType,
     floor: number = 0,
-    absence?: AbsenceType
+    absence?: AbsenceType,
+    absenceHours?: number
   ) {
     if (colIdx === 0) return; // Skip resource name column
-    
+
     const resource = resources[rowIdx];
     const date = dateArray[colIdx - 1];
     const oldShift = matrix[resource.id][date];
-    
+
     if (!oldShift) return;
-    
-    // Se assenza, setta shiftType a Free e floor a 0
+
+    // Se assenza, NON cambiare il turno, aggiungi solo i dati di assenza
     const newShift: ResourceShift = {
       ...oldShift,
-      shiftType: absence ? ShiftType.Free : shiftType,
+      shiftType: shiftType,
       floor: (shiftType === ShiftType.Free || shiftType === ShiftType.MorningI || absence) ? 0 : floor,
-      absence: absence
+      absence: absence,
+      absenceHours: absence ? absenceHours : undefined
     };
-    
+
     // Update the matrix with the new shift
     const newMatrix = { ...matrix };
     newMatrix[resource.id] = { ...newMatrix[resource.id], [date]: newShift };
@@ -998,7 +1042,11 @@ export default function Page() {
                       }}>{row[col.key]}</span>
                     ) : (
                       <div style={{
-                        backgroundColor: row[col.key]?.shiftType ? coloriTurni[row[col.key].shiftType as ShiftType] : undefined,
+                        backgroundColor: row[col.key]?.absence
+                          ? coloriTurni[row[col.key].absence]
+                          : row[col.key]?.shiftType
+                            ? coloriTurni[row[col.key].shiftType as ShiftType]
+                            : undefined,
                         height: "100%",
                         display: "flex",
                         alignItems: "center",
@@ -1007,13 +1055,36 @@ export default function Page() {
                         fontWeight: 600,
                         fontSize: "8pt"
                       }}>
-                        {row[col.key]?.absence
-                          ? abbreviations[row[col.key].absence]
-                          : row[col.key]?.shiftType
+                        {/* Visualizzazione logica come sopra */}
+                        {row[col.key]?.absence ? (
+                          // Se assenza parziale (<8h), mostra turno + assenza
+                          (typeof row[col.key].absenceHours === "number" && row[col.key].absenceHours > 0 && row[col.key].absenceHours < 8)
+                            ? (
+                              <>
+                                {row[col.key].shiftType && row[col.key].shiftType !== ShiftType.Free
+                                  ? (row[col.key].floor > 0
+                                      ? `${abbreviations[row[col.key].shiftType]}${row[col.key].floor} + `
+                                      : `${abbreviations[row[col.key].shiftType]} + `)
+                                  : ""}
+                                {abbreviations[row[col.key].absence]}
+                                {`(${row[col.key].absenceHours}h)`}
+                              </>
+                            )
+                            // Se assenza totale (ore non specificate o 8), mostra solo assenza
+                            : (
+                              <>
+                                {abbreviations[row[col.key].absence]}
+                                {typeof row[col.key].absenceHours === "number" && row[col.key].absenceHours > 0
+                                  ? `(${row[col.key].absenceHours}h)` : ""}
+                              </>
+                            )
+                        ) : (
+                          row[col.key]?.shiftType && row[col.key].shiftType !== ShiftType.Free
                             ? (row[col.key].floor > 0
                                 ? `${abbreviations[row[col.key].shiftType]}${row[col.key].floor}`
                                 : abbreviations[row[col.key].shiftType])
-                            : ""}
+                            : ""
+                        )}
                       </div>
                     )}
                   </td>

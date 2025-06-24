@@ -56,6 +56,7 @@ export class ResourceShift {
     public date: string = '';
     public cycleIndex: number = 0;
     public absence?: AbsenceType; // aggiunto
+    public absenceHours?: number; // nuovo campo per le ore di assenza
 }
 
 export type Calendar = Record<string, Record<string, ShiftType>>;
