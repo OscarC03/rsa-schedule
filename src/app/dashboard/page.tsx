@@ -1158,6 +1158,60 @@ export default function Page() {
     `,
   });
 
+  // --- EXPORT/IMPORT LOGIC ---
+
+  // Esporta tutti i dati dei turni dal localStorage in un file JSON
+  function handleExportShifts() {
+    // Prendi tutte le chiavi che iniziano con "rsa-schedule-matrix-"
+    const allKeys = Object.keys(localStorage).filter(k => k.startsWith("rsa-schedule-matrix-"));
+    const exportData: Record<string, any> = {};
+    allKeys.forEach(key => {
+      try {
+        exportData[key] = JSON.parse(localStorage.getItem(key) || "{}");
+      } catch {
+        // skip
+      }
+    });
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "rsa-schedule-export.json";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+  }
+
+  // Importa dati dei turni da un file JSON e li salva nel localStorage
+  function handleImportShifts(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string);
+        if (typeof data === "object" && data !== null) {
+          Object.entries(data).forEach(([key, value]) => {
+            if (key.startsWith("rsa-schedule-matrix-")) {
+              localStorage.setItem(key, JSON.stringify(value));
+            }
+          });
+          alert("Importazione completata! Ricarica la pagina per vedere i dati importati.");
+        } else {
+          alert("File non valido.");
+        }
+      } catch {
+        alert("Errore durante l'importazione.");
+      }
+    };
+    reader.readAsText(file);
+    // Reset input per permettere re-import dello stesso file
+    e.target.value = "";
+  }
+
   if (isLoading)
     return (
       <div
@@ -1289,6 +1343,70 @@ export default function Page() {
             </svg>
             Stampa orario
           </button>
+
+          {/* Pulsante esporta turni */}
+          <button
+            onClick={handleExportShifts}
+            className="ml-2 flex items-center justify-center gap-1 px-4 py-2 rounded transition-all duration-200"
+            style={{
+              background: "#10b981",
+              color: "white",
+              fontWeight: 600,
+              boxShadow: "0 1px 4px rgba(16,185,129,0.15)",
+              border: "none",
+              cursor: "pointer",
+              minHeight: 40
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = "#059669";
+              e.currentTarget.style.boxShadow = "0 2px 6px rgba(16,185,129,0.25)";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = "#10b981";
+              e.currentTarget.style.boxShadow = "0 1px 4px rgba(16,185,129,0.15)";
+            }}
+            title="Esporta tutti i turni (JSON)"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M.5 9.9a.5.5 0 0 1 .5-.5h4.5V1.5a.5.5 0 0 1 1 0v7.9h4.5a.5.5 0 0 1 .5.5v.6a.5.5 0 0 1-.5.5H6.5v2.9a.5.5 0 0 1-1 0v-2.9H1a.5.5 0 0 1-.5-.5v-.6z"/>
+            </svg>
+            Esporta turni
+          </button>
+
+          {/* Pulsante importa turni */}
+          <label
+            className="ml-2 flex items-center justify-center gap-1 px-4 py-2 rounded transition-all duration-200"
+            style={{
+              background: "#f59e42",
+              color: "white",
+              fontWeight: 600,
+              boxShadow: "0 1px 4px rgba(245,158,66,0.15)",
+              border: "none",
+              cursor: "pointer",
+              minHeight: 40
+            }}
+            onMouseOver={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "#ea580c";
+              (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 6px rgba(245,158,66,0.25)";
+            }}
+            onMouseOut={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "#f59e42";
+              (e.currentTarget as HTMLElement).style.boxShadow = "0 1px 4px rgba(245,158,66,0.15)";
+            }}
+            title="Importa turni da file JSON"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M.5 6.1a.5.5 0 0 1 .5.5v.6a.5.5 0 0 1-.5.5H1v2.9a.5.5 0 0 0 1 0V7.7h4.5a.5.5 0 0 0 .5-.5v-.6a.5.5 0 0 0-.5-.5H2V3.7a.5.5 0 0 0-1 0v2.4H.5z"/>
+            </svg>
+            Importa turni
+            <input
+              type="file"
+              accept="application/json"
+              style={{ display: "none" }}
+              onChange={handleImportShifts}
+              tabIndex={-1}
+            />
+          </label>
         </div>
       </div>
 
