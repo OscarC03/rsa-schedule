@@ -1225,7 +1225,7 @@ export default function Page() {
     if (window.confirm("Sei sicuro di voler cancellare tutti i turni salvati? L'operazione è irreversibile.")) {
       const allKeys = Object.keys(localStorage).filter(k => k.startsWith("rsa-schedule-matrix-"));
       allKeys.forEach(key => localStorage.removeItem(key));
-      alert("Tutti i turni sono stati rimossi dal localStorage.");
+      alert("Tutti i turni sono stati rimossi.");
       window.location.reload();
     }
   }
