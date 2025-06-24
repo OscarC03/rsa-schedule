@@ -484,7 +484,6 @@ export default function Page() {
   const [dateArray, setDateArray] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isTableLoading, setIsTableLoading] = useState<boolean>(false);
-  const [selectedMonth, setSelectedMonth] = useState<number>(4);
   const printTableRef = useRef<HTMLDivElement>(null);
   // Aggiungi stato per controllo visibilità della tabella di stampa
   const [isPrintingView, setIsPrintingView] = useState(false);
@@ -725,31 +724,18 @@ export default function Page() {
     { value: 3, label: "Aprile" },
   ];
 
-  // Funzione chiamata al cambio mese
-  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedMonth = parseInt(e.target.value, 10);
-    setSelectedMonth(selectedMonth);
-    setIsTableLoading(true);
-    if (lastShiftRef.current.length === 0) {
-      lastShiftRef.current = shiftRef.current;
-    }
-    const lastShiftIndexByResource = getLastShiftIndexByResource(lastShiftRef.current);
-    const monthSchedule = replicateScheduleForMonth(shiftRef.current, resources, lastShiftIndexByResource, 2025, selectedMonth);
-    lastShiftRef.current = monthSchedule;
-    initSchedule(monthSchedule, true);
-    setIsTableLoading(false);
-  };
-
-  // Utility per localStorage
-  const LOCAL_STORAGE_KEY = "rsa-schedule-matrix";
-  function saveMatrixToLocalStorage(matrix: Record<string, Record<string, ResourceShift>>) {
+  // Utility per localStorage per mese/anno
+  function getMatrixStorageKey(year: number, month: number) {
+    return `rsa-schedule-matrix-${year}-${month.toString().padStart(2, "0")}`;
+  }
+  function saveMatrixToLocalStorage(matrix: Record<string, Record<string, ResourceShift>>, year: number, month: number) {
     try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(matrix));
+      localStorage.setItem(getMatrixStorageKey(year, month), JSON.stringify(matrix));
     } catch {}
   }
-  function loadMatrixFromLocalStorage(): Record<string, Record<string, ResourceShift>> | null {
+  function loadMatrixFromLocalStorage(year: number, month: number): Record<string, Record<string, ResourceShift>> | null {
     try {
-      const data = localStorage.getItem(LOCAL_STORAGE_KEY);
+      const data = localStorage.getItem(getMatrixStorageKey(year, month));
       if (!data) return null;
       return JSON.parse(data);
     } catch {
@@ -757,9 +743,22 @@ export default function Page() {
     }
   }
 
-  const initSchedule = (resourceShifts: ResourceShift[], persist = true) => {
+  // Calcola mese/anno di partenza: Maggio 2025
+  const initialMonth = 4; // Maggio (zero-based)
+  const initialYear = 2025;
+
+  // Stato per mese/anno selezionato
+  const [selectedMonth, setSelectedMonth] = useState<number>(initialMonth);
+  const [selectedYear, setSelectedYear] = useState<number>(initialYear);
+
+  // Inizializza la matrice per il mese/anno selezionato
+  const initSchedule = (
+    resourceShifts: ResourceShift[],
+    persist = true,
+    year = selectedYear,
+    month = selectedMonth
+  ) => {
     setIsLoading(true);
-    console.log(resourceShifts);
 
     // Estrai tutte le date distinte ordinate
     const dateSet = new Set(resourceShifts.map(t => t.date));
@@ -778,7 +777,7 @@ export default function Page() {
     });
     
     setMatrix(mappaTurni);
-    if (persist) saveMatrixToLocalStorage(mappaTurni);
+    if (persist) saveMatrixToLocalStorage(mappaTurni, year, month);
     setIsLoading(false);
   }
 
@@ -793,8 +792,10 @@ export default function Page() {
   }
 
   useEffect(() => {
-    // Prova a caricare dal localStorage
-    const loadedMatrix = loadMatrixFromLocalStorage();
+    // All'avvio mostra Maggio 2025
+    const year = selectedYear;
+    const month = selectedMonth;
+    let loadedMatrix = loadMatrixFromLocalStorage(year, month);
     if (loadedMatrix) {
       // Ricostruisci dateArray da matrix
       const allDates = Object.values(loadedMatrix)
@@ -805,13 +806,68 @@ export default function Page() {
       setMatrix(loadedMatrix);
       setIsLoading(false);
     } else {
-      const startDate = new Date(2025, 4, 1, 0, 0, 0, 0); // Inizio del mese corrente
+      // Se non c'è, genera i turni per Maggio 2025
+      const startDate = new Date(year, month, 1, 0, 0, 0, 0);
       const monthSchedule = generateShift(startDate, resources);
       setShifts(monthSchedule);
-      shiftRef.current = monthSchedule; // Salva i turni generati nel ref
-      initSchedule(monthSchedule);
+      shiftRef.current = monthSchedule;
+      initSchedule(monthSchedule, true, year, month);
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Solo all'avvio
+
+  // Cambio mese
+  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedMonth = parseInt(e.target.value, 10);
+    setSelectedMonth(selectedMonth);
+    setIsTableLoading(true);
+
+    const year = selectedYear;
+    const month = selectedMonth;
+
+    // Prova a caricare la matrice del mese selezionato
+    let loadedMatrix = loadMatrixFromLocalStorage(year, selectedMonth);
+    if (loadedMatrix) {
+      // Ricostruisci dateArray da matrix
+      const allDates = Object.values(loadedMatrix)
+        .flatMap(obj => Object.keys(obj));
+      const dateSet = new Set(allDates);
+      const dateArray = Array.from(dateSet).sort();
+      setDateArray(dateArray);
+      setMatrix(loadedMatrix);
+      setIsTableLoading(false);
+    } else {
+      // Se non c'è, genera la matrice tramite replicateScheduleForMonth con i turni del mese precedente
+      // Trova il mese precedente (gestendo Gennaio)
+      let prevMonth = selectedMonth - 1;
+      let prevYear = year;
+      if (prevMonth < 0) {
+        prevMonth = 11;
+        prevYear = year - 1;
+      }
+      let prevMatrix = loadMatrixFromLocalStorage(prevYear, prevMonth);
+      let prevShifts: ResourceShift[] = [];
+      if (prevMatrix) {
+        // Ricostruisci array di ResourceShift dal matrix
+        prevShifts = Object.values(prevMatrix).flatMap(obj => Object.values(obj));
+      } else {
+        // Se non c'è nemmeno il mese precedente, genera da zero
+        const prevStartDate = new Date(prevYear, prevMonth, 1, 0, 0, 0, 0);
+        prevShifts = generateShift(prevStartDate, resources);
+      }
+      const lastShiftIndexByResource = getLastShiftIndexByResource(prevShifts);
+      const monthSchedule = replicateScheduleForMonth(
+        prevShifts,
+        resources,
+        lastShiftIndexByResource,
+        year,
+        selectedMonth
+      );
+      lastShiftRef.current = monthSchedule;
+      initSchedule(monthSchedule, true, year, selectedMonth);
+      setIsTableLoading(false);
+    }
+  };
 
   // Drag type
   const CELL_TYPE = "CELL";
@@ -880,7 +936,7 @@ export default function Page() {
     newMatrix[fromResource.id][fromDate] = newMatrix[toResource.id][toDate];
     newMatrix[toResource.id][toDate] = temp;
     setMatrix(newMatrix);
-    saveMatrixToLocalStorage(newMatrix);
+    saveMatrixToLocalStorage(newMatrix, selectedYear, selectedMonth);
   }
 
   function handleShiftTypeChange(
@@ -910,7 +966,7 @@ export default function Page() {
     const newMatrix = { ...matrix };
     newMatrix[resource.id] = { ...newMatrix[resource.id], [date]: newShift };
     setMatrix(newMatrix);
-    saveMatrixToLocalStorage(newMatrix);
+    saveMatrixToLocalStorage(newMatrix, selectedYear, selectedMonth);
   }
 
   // Componente tabella statica per la stampa
