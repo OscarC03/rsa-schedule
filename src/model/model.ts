@@ -41,6 +41,13 @@ export enum ShiftType {
     Free = 'Free',
 }
 
+// Nuovo enum per le assenze
+export enum AbsenceType {
+    Ferie = 'Ferie',
+    Permesso = 'Permesso',
+    Malattia = 'Malattia'
+}
+
 export class ResourceShift {
     public resourceId: string = '';
     public shiftCode: string = "";
@@ -48,6 +55,7 @@ export class ResourceShift {
     public floor: number = 0;
     public date: string = '';
     public cycleIndex: number = 0;
+    public absence?: AbsenceType; // aggiunto
 }
 
 export type Calendar = Record<string, Record<string, ShiftType>>;

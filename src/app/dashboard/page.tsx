@@ -1,7 +1,7 @@
 "use client";
 
 import { generateShift, getLastShiftIndexByResource, replicateScheduleForMonth } from "@/Application Code/Shift Management/ShiftManagement";
-import { Days, Resource, ResourceShift, ResourceType, ShiftType } from "@/model/model";
+import { Days, Resource, ResourceShift, ResourceType, ShiftType, AbsenceType } from "@/model/model";
 import { useEffect, useRef, useState, useMemo, memo } from "react";
 import { TableVirtuoso } from "react-virtuoso";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
@@ -13,14 +13,17 @@ import { useReactToPrint } from "react-to-print";
 const CELL_HEIGHT = 64;
 const CELL_WIDTH = 140;
 
-// Colori pastello per i turni
-const coloriTurni: Record<ShiftType, string> = {
+// Colori pastello per i turni e le assenze
+const coloriTurni: Record<string, string> = {
   Morning: '#b7eacb',    // verde pastello
   MorningI: '#a3e3e6',   // azzurro-verde per MorningI
   Afternoon: '#ffe5b4',  // arancio pastello
   Split: '#b4d8ff',      // azzurro pastello
   Night: '#c7bfff',      // viola pastello
   Free: '#f3f4f6',       // grigio pastello
+  Ferie: '#ffe4e1',
+  Permesso: '#fff9c4',
+  Malattia: '#e0e7ff',
 };
 
 const CELL_TYPE = "CELL";
@@ -35,14 +38,23 @@ const shiftTypes: ShiftType[] = [
   ShiftType.Free
 ];
 
+const absenceTypes: AbsenceType[] = [
+  AbsenceType.Ferie,
+  AbsenceType.Permesso,
+  AbsenceType.Malattia
+];
+
 // Mappa dei nomi italiani per la visualizzazione
-const italianNames: Record<ShiftType, string> = {
+const italianNames: Record<string, string> = {
   Morning: 'Mattina',
   MorningI: 'Mattina Inf.',
   Afternoon: 'Pomeriggio',
   Split: 'Spezzato',
   Night: 'Notte',
-  Free: 'Riposo'
+  Free: 'Riposo',
+  Ferie: 'Ferie',
+  Permesso: 'Permesso',
+  Malattia: 'Malattia'
 };
 
 // Add this new component for editable cells with double-click functionality
@@ -58,8 +70,8 @@ const EditableCell = memo(function EditableCell({
   colIdx: number;
   value: ResourceShift | undefined;
   onCellDrop: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void;
-  coloriTurni: Record<ShiftType, string>;
-  onShiftChange: (rowIdx: number, colIdx: number, shiftType: ShiftType, floor: number) => void;
+  coloriTurni: Record<string, string>;
+  onShiftChange: (rowIdx: number, colIdx: number, shiftType: ShiftType, floor: number, absence?: AbsenceType) => void;
 }) {
   const [{ isDragging }, drag] = useDrag({
     type: CELL_TYPE,
@@ -85,22 +97,20 @@ const EditableCell = memo(function EditableCell({
   // Add state for selected shift type and floor
   const [selectedShift, setSelectedShift] = useState<ShiftType>(value?.shiftType || ShiftType.Free);
   const [selectedFloor, setSelectedFloor] = useState<number>(value?.floor || 0);
-  
+  const [selectedAbsence, setSelectedAbsence] = useState<AbsenceType | undefined>(value?.absence);
+
   // Floor options - changed to only 4 floors
   const floorOptions = [0, 1, 2, 3, 4];
 
   // Visualizzazione nome turno e piano in italiano nella cella
   let display = "";
-  if (
-    value &&
-    typeof value === "object" &&
-    value !== null &&
-    typeof value.shiftType === "string"
-  ) {
-    const name = italianNames[value.shiftType as ShiftType] || value.shiftType;
-    display = value.floor > 0
-      ? `${name} (${value.floor})`
-      : name;
+  if (value && typeof value === "object" && value !== null) {
+    if (value.absence) {
+      display = italianNames[value.absence] || value.absence;
+    } else if (typeof value.shiftType === "string") {
+      const name = italianNames[value.shiftType as ShiftType] || value.shiftType;
+      display = value.floor > 0 ? `${name} (${value.floor})` : name;
+    }
   }
 
   const setRef = (node: HTMLDivElement | null) => {
@@ -114,17 +124,25 @@ const EditableCell = memo(function EditableCell({
     e.stopPropagation();
     setSelectedShift(value?.shiftType || ShiftType.Free);
     setSelectedFloor(value?.floor || 0);
+    setSelectedAbsence(value?.absence);
     setIsEditing(true);
   };
   
   // Handle shift type selection
   const handleShiftTypeSelect = (shiftType: ShiftType) => {
     setSelectedShift(shiftType);
-    
+    setSelectedAbsence(undefined);
     // Automatically set floor to 0 for Free shift type
     if (shiftType === ShiftType.Free) {
       setSelectedFloor(0);
     }
+  };
+  
+  // Handle absence selection
+  const handleAbsenceSelect = (absence: AbsenceType) => {
+    setSelectedAbsence(absence);
+    setSelectedShift(ShiftType.Free);
+    setSelectedFloor(0);
   };
   
   // Handle floor selection
@@ -138,7 +156,8 @@ const EditableCell = memo(function EditableCell({
       rowIdx,
       colIdx,
       selectedShift,
-      selectedShift === ShiftType.MorningI || selectedShift === ShiftType.Free ? 0 : selectedFloor
+      (selectedShift === ShiftType.MorningI || selectedShift === ShiftType.Free || selectedAbsence) ? 0 : selectedFloor,
+      selectedAbsence
     );
     setIsEditing(false);
   };
@@ -151,7 +170,11 @@ const EditableCell = memo(function EditableCell({
         ref={setRef}
         style={{
           opacity: isDragging ? 0.5 : 1,
-          backgroundColor: value && value.shiftType ? coloriTurni[value.shiftType] : undefined,
+          backgroundColor: value?.absence
+            ? coloriTurni[value.absence]
+            : value && value.shiftType
+              ? coloriTurni[value.shiftType]
+              : undefined,
           cursor: "move",
           minWidth: CELL_WIDTH,
           maxWidth: CELL_WIDTH,
@@ -241,7 +264,7 @@ const EditableCell = memo(function EditableCell({
                 key={type}
                 onClick={() => handleShiftTypeSelect(type)}
                 style={{
-                  backgroundColor: selectedShift === type ? coloriTurni[type] : "#fff",
+                  backgroundColor: selectedAbsence ? "#fff" : (selectedShift === type ? coloriTurni[type] : "#fff"),
                   border: `1px solid ${coloriTurni[type]}`,
                   textAlign: "center",
                   padding: "10px 12px",
@@ -267,8 +290,49 @@ const EditableCell = memo(function EditableCell({
               </button>
             ))}
           </div>
-          {/* Floor selection - solo se non Free e non MorningI */}
-          {selectedShift !== ShiftType.Free && selectedShift !== ShiftType.MorningI && (
+          {/* Sezione Assenze */}
+          <div style={{ fontWeight: 700, marginBottom: "8px", color: "#4f46e5" }}>
+            Assenze
+          </div>
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            marginBottom: 16
+          }}>
+            {absenceTypes.map(type => (
+              <button
+                key={type}
+                onClick={() => handleAbsenceSelect(type)}
+                style={{
+                  backgroundColor: selectedAbsence === type ? coloriTurni[type] : "#fff",
+                  border: `1px solid ${coloriTurni[type]}`,
+                  textAlign: "center",
+                  padding: "10px 12px",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  color: "#18181b",
+                  transition: "all 0.2s ease",
+                  boxShadow: selectedAbsence === type ? "0 2px 5px rgba(0,0,0,0.1)" : "none",
+                  width: "100%",
+                  fontSize: "1rem"
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.boxShadow = "0 2px 5px rgba(0,0,0,0.1)";
+                }}
+                onMouseOut={(e) => {
+                  if (selectedAbsence !== type) {
+                    e.currentTarget.style.boxShadow = "none";
+                  }
+                }}
+              >
+                {italianNames[type] || type}
+              </button>
+            ))}
+          </div>
+          {/* Floor selection - solo se non Free, non MorningI e nessuna assenza */}
+          {selectedShift !== ShiftType.Free && selectedShift !== ShiftType.MorningI && !selectedAbsence && (
             <>
               <div style={{ fontWeight: 700, marginTop: "12px", marginBottom: "4px", color: "#4f46e5" }}>
                 Seleziona piano
@@ -747,7 +811,13 @@ export default function Page() {
     );
   });
 
-  function handleShiftTypeChange(rowIdx: number, colIdx: number, shiftType: ShiftType, floor: number = 0) {
+  function handleShiftTypeChange(
+    rowIdx: number,
+    colIdx: number,
+    shiftType: ShiftType,
+    floor: number = 0,
+    absence?: AbsenceType
+  ) {
     if (colIdx === 0) return; // Skip resource name column
     
     const resource = resources[rowIdx];
@@ -756,12 +826,12 @@ export default function Page() {
     
     if (!oldShift) return;
     
-    // Create a new shift with the selected shift type and floor
-    // If shift type is Free, ensure floor is 0
-    const newShift: ResourceShift = { 
-      ...oldShift, 
-      shiftType, 
-      floor: shiftType === ShiftType.Free ? 0 : floor 
+    // Se assenza, setta shiftType a Free e floor a 0
+    const newShift: ResourceShift = {
+      ...oldShift,
+      shiftType: absence ? ShiftType.Free : shiftType,
+      floor: (shiftType === ShiftType.Free || shiftType === ShiftType.MorningI || absence) ? 0 : floor,
+      absence: absence
     };
     
     // Update the matrix with the new shift
@@ -843,13 +913,16 @@ export default function Page() {
     const printCellWidth = Math.max(30, Math.min(60, Math.floor(700 / columns.length)));
     
     // Mappa delle abbreviazioni per i turni
-    const abbreviations: Record<ShiftType, string> = {
+    const abbreviations: Record<string, string> = {
       Morning: 'M',
       MorningI: 'MI',
       Afternoon: 'A', 
       Split: 'S',
       Night: 'N',
-      Free: 'F'
+      Free: 'F',
+      Ferie: 'FE',
+      Permesso: 'PE',
+      Malattia: 'MA'
     };
     
     // Funzione per estrarre solo il giorno dalla data (senza il mese)
@@ -871,7 +944,10 @@ export default function Page() {
           <span style={{ marginRight: "8px" }}><strong>A</strong>=Pomeriggio</span>
           <span style={{ marginRight: "8px" }}><strong>S</strong>=Spezzato</span>
           <span style={{ marginRight: "8px" }}><strong>N</strong>=Notte</span>
-          <span><strong>F</strong>=Libero</span>
+          <span style={{ marginRight: "8px" }}><strong>F</strong>=Libero</span>
+          <span style={{ marginRight: "8px" }}><strong>FE</strong>=Ferie</span>
+          <span style={{ marginRight: "8px" }}><strong>PE</strong>=Permesso</span>
+          <span><strong>MA</strong>=Malattia</span>
         </div>
         
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "8pt", tableLayout: "fixed" }}>
@@ -931,12 +1007,13 @@ export default function Page() {
                         fontWeight: 600,
                         fontSize: "8pt"
                       }}>
-                        {row[col.key]?.shiftType ? 
-                          // Usa solo l'iniziale del tipo di turno e il piano se presente
-                          row[col.key].floor > 0
-                            ? `${abbreviations[row[col.key].shiftType as ShiftType]}${row[col.key].floor}`
-                            : abbreviations[row[col.key].shiftType as ShiftType]
-                          : ""}
+                        {row[col.key]?.absence
+                          ? abbreviations[row[col.key].absence]
+                          : row[col.key]?.shiftType
+                            ? (row[col.key].floor > 0
+                                ? `${abbreviations[row[col.key].shiftType]}${row[col.key].floor}`
+                                : abbreviations[row[col.key].shiftType])
+                            : ""}
                       </div>
                     )}
                   </td>
