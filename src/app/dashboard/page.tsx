@@ -807,14 +807,20 @@ export default function Page() {
   ], [dateArray, coloriTurni]);
 
   // ROWS
-  const rows = useMemo(() =>
-    resources.map((resource, rowIdx) => {
+  const rows = useMemo(() => {
+    // Ordina le risorse: prima full-time, poi part-time (mantenendo l'ordine originale)
+    const sortedResources = [
+      ...resources.filter(r => r.type === ResourceType.FULL_TIME),
+      ...resources.filter(r => r.type !== ResourceType.FULL_TIME)
+    ];
+    return sortedResources.map((resource, rowIdx) => {
       const row: any = { resourceName: resource.lastName + ' ' + resource.firstName };
       dateArray.forEach(date => {
         row[date] = matrix[resource.id]?.[date];
       });
       return row;
-    }), [resources, dateArray, matrix]);
+    });
+  }, [resources, dateArray, matrix]);
 
   function handleCellDrop(fromRow: number, fromCol: number, toRow: number, toCol: number) {
     if (fromCol === 0 || toCol === 0) return;
