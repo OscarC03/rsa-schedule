@@ -728,25 +728,36 @@ export default function Page() {
   // Funzione chiamata al cambio mese
   const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedMonth = parseInt(e.target.value, 10);
-    setSelectedMonth(selectedMonth); // Aggiungi questa riga per tenere traccia del mese selezionato
-    // Qui puoi chiamare la funzione che preferisci, ad esempio:
-    // aggiornaTurniPerMese(selectedMonth);
+    setSelectedMonth(selectedMonth);
     setIsTableLoading(true);
     if (lastShiftRef.current.length === 0) {
-      lastShiftRef.current = shiftRef.current; // Salva i turni del mese precedente
+      lastShiftRef.current = shiftRef.current;
     }
-
-    console.log("Mese selezionato:", selectedMonth);
     const lastShiftIndexByResource = getLastShiftIndexByResource(lastShiftRef.current);
-    console.log("Ultimo indice di turno per risorsa:", lastShiftIndexByResource);
     const monthSchedule = replicateScheduleForMonth(shiftRef.current, resources, lastShiftIndexByResource, 2025, selectedMonth);
-    console.log("Turni del mese selezionato:", monthSchedule);
-    lastShiftRef.current = monthSchedule; // Salva i turni del mese selezionato nel ref
-    initSchedule(monthSchedule);
+    lastShiftRef.current = monthSchedule;
+    initSchedule(monthSchedule, true);
     setIsTableLoading(false);
   };
 
-  const initSchedule = (resourceShifts: ResourceShift[]) => {
+  // Utility per localStorage
+  const LOCAL_STORAGE_KEY = "rsa-schedule-matrix";
+  function saveMatrixToLocalStorage(matrix: Record<string, Record<string, ResourceShift>>) {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(matrix));
+    } catch {}
+  }
+  function loadMatrixFromLocalStorage(): Record<string, Record<string, ResourceShift>> | null {
+    try {
+      const data = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (!data) return null;
+      return JSON.parse(data);
+    } catch {
+      return null;
+    }
+  }
+
+  const initSchedule = (resourceShifts: ResourceShift[], persist = true) => {
     setIsLoading(true);
     console.log(resourceShifts);
 
@@ -767,6 +778,7 @@ export default function Page() {
     });
     
     setMatrix(mappaTurni);
+    if (persist) saveMatrixToLocalStorage(mappaTurni);
     setIsLoading(false);
   }
 
@@ -781,108 +793,28 @@ export default function Page() {
   }
 
   useEffect(() => {
-    const startDate = new Date(2025, 4, 1, 0, 0, 0, 0); // Inizio del mese corrente
-    const monthSchedule = generateShift(startDate, resources);
-    setShifts(monthSchedule);
-    shiftRef.current = monthSchedule; // Salva i turni generati nel ref
-    initSchedule(monthSchedule);
+    // Prova a caricare dal localStorage
+    const loadedMatrix = loadMatrixFromLocalStorage();
+    if (loadedMatrix) {
+      // Ricostruisci dateArray da matrix
+      const allDates = Object.values(loadedMatrix)
+        .flatMap(obj => Object.keys(obj));
+      const dateSet = new Set(allDates);
+      const dateArray = Array.from(dateSet).sort();
+      setDateArray(dateArray);
+      setMatrix(loadedMatrix);
+      setIsLoading(false);
+    } else {
+      const startDate = new Date(2025, 4, 1, 0, 0, 0, 0); // Inizio del mese corrente
+      const monthSchedule = generateShift(startDate, resources);
+      setShifts(monthSchedule);
+      shiftRef.current = monthSchedule; // Salva i turni generati nel ref
+      initSchedule(monthSchedule);
+    }
   }, []);
 
   // Drag type
   const CELL_TYPE = "CELL";
-
-  // Cell renderer with drag-and-drop
-  const DraggableCell = memo(function DraggableCell({ rowIdx, colIdx, value, onCellDrop, coloriTurni }: any) {
-    const [{ isDragging }, drag] = useDrag({
-      type: "CELL",
-      item: () => ({ rowIdx, colIdx, value }), // Using a function to get current value when dragging starts
-      collect: (monitor) => ({
-        isDragging: monitor.isDragging()
-      })
-    });
-
-    const [, drop] = useDrop({
-      accept: "CELL",
-      drop: (item: any) => {
-        if (item.rowIdx !== rowIdx || item.colIdx !== colIdx) {
-          onCellDrop(item.rowIdx, item.colIdx, rowIdx, colIdx);
-        }
-      }
-    });
-
-    // FIX: use a callback ref that returns void, not a React element
-    const setRef = (node: HTMLDivElement | null) => {
-      drag(drop(node));
-    };
-
-    return (
-      <div
-        ref={setRef}
-        style={{
-          opacity: isDragging ? 0.5 : 1,
-          backgroundColor: value && value.shiftType ? coloriTurni[value.shiftType] : undefined,
-          cursor: "move",
-          minWidth: CELL_WIDTH,
-          maxWidth: CELL_WIDTH,
-          width: CELL_WIDTH,
-          minHeight: CELL_HEIGHT,
-          maxHeight: CELL_HEIGHT,
-          height: CELL_HEIGHT,
-          fontSize: "1.1rem",
-          padding: 0,
-          boxSizing: "border-box",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: 8,
-          fontWeight: 600,
-          userSelect: "none",
-          color: value && value.shiftType === "Free" ? "#6b7280" : "#18181b",
-          border: "1px solid #e5e7eb",
-          textAlign: "center",
-          overflow: "hidden"
-        }}
-        title={value && value.shiftType ? value.shiftType.toString() : ""}
-      >
-        {value && value.floor > 0
-          ? `${value.shiftType} Piano: ${value.floor}`
-          : value && value.shiftType
-            ? value.shiftType
-            : ""}
-      </div>
-    );
-  });
-
-  function handleShiftTypeChange(
-    rowIdx: number,
-    colIdx: number,
-    shiftType: ShiftType,
-    floor: number = 0,
-    absence?: AbsenceType,
-    absenceHours?: number
-  ) {
-    if (colIdx === 0) return; // Skip resource name column
-
-    const resource = resources[rowIdx];
-    const date = dateArray[colIdx - 1];
-    const oldShift = matrix[resource.id][date];
-
-    if (!oldShift) return;
-
-    // Se assenza, NON cambiare il turno, aggiungi solo i dati di assenza
-    const newShift: ResourceShift = {
-      ...oldShift,
-      shiftType: shiftType,
-      floor: (shiftType === ShiftType.Free || shiftType === ShiftType.MorningI || absence) ? 0 : floor,
-      absence: absence,
-      absenceHours: absence ? absenceHours : undefined
-    };
-
-    // Update the matrix with the new shift
-    const newMatrix = { ...matrix };
-    newMatrix[resource.id] = { ...newMatrix[resource.id], [date]: newShift };
-    setMatrix(newMatrix);
-  }
 
   // COLUMNS - Update to use the EditableCell component
   const columns = useMemo(() => [
@@ -948,6 +880,37 @@ export default function Page() {
     newMatrix[fromResource.id][fromDate] = newMatrix[toResource.id][toDate];
     newMatrix[toResource.id][toDate] = temp;
     setMatrix(newMatrix);
+    saveMatrixToLocalStorage(newMatrix);
+  }
+
+  function handleShiftTypeChange(
+    rowIdx: number,
+    colIdx: number,
+    shiftType: ShiftType,
+    floor: number = 0,
+    absence?: AbsenceType,
+    absenceHours?: number
+  ) {
+    if (colIdx === 0) return; // Skip resource name column
+
+    const resource = resources[rowIdx];
+    const date = dateArray[colIdx - 1];
+    const oldShift = matrix[resource.id][date];
+
+    if (!oldShift) return;
+
+    const newShift: ResourceShift = {
+      ...oldShift,
+      shiftType: shiftType,
+      floor: (shiftType === ShiftType.Free || shiftType === ShiftType.MorningI || absence) ? 0 : floor,
+      absence: absence,
+      absenceHours: absence ? absenceHours : undefined
+    };
+
+    const newMatrix = { ...matrix };
+    newMatrix[resource.id] = { ...newMatrix[resource.id], [date]: newShift };
+    setMatrix(newMatrix);
+    saveMatrixToLocalStorage(newMatrix);
   }
 
   // Componente tabella statica per la stampa
