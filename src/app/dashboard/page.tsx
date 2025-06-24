@@ -1,7 +1,7 @@
 "use client";
 
 import { generateShift, getLastShiftIndexByResource, replicateScheduleForMonth } from "@/Application Code/Shift Management/ShiftManagement";
-import { Resource, ResourceShift, ResourceType, ShiftType } from "@/model/model";
+import { Days, Resource, ResourceShift, ResourceType, ShiftType } from "@/model/model";
 import { useEffect, useRef, useState, useMemo, memo } from "react";
 import { TableVirtuoso } from "react-virtuoso";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
@@ -352,33 +352,222 @@ export default function Page() {
   const printableTableRef = useRef<HTMLDivElement>(null);
   
   const resources: Resource[] = [
-    // 23 OSS A TEMPO PIENO
-    ...Array.from({ length: 23 }, (_, i) => ({
-      id: (i + 1).toString(),
-      firstName: `OSS${i + 1}`,
-      lastName: `FullTime`,
+    {
+      id: "1",
+      firstName: "V.",
+      lastName: "Aschero",
       forbiddenShiftTypes: [],
       type: ResourceType.FULL_TIME,
       fixedDays: []
-    })),
-    // 1 OSS PART TIME 50%
+    },
     {
-      id: '24',
-      firstName: "OSS24",
-      lastName: "PartTime50",
+      id: "2",
+      firstName: "L.",
+      lastName: "Baudino",
       forbiddenShiftTypes: [],
-      type: ResourceType.PART_TIME_50,
+      type: ResourceType.FULL_TIME,
       fixedDays: []
     },
-    // 3 OSS PART TIME 70%
-    ...Array.from({ length: 3 }, (_, i) => ({
-      id: (25 + i).toString(),
-      firstName: `OSS${25 + i}`,
-      lastName: "PartTime70",
+    {
+      id: "3",
+      firstName: "V.",
+      lastName: "Borgna",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "4",
+      firstName: "E.",
+      lastName: "Briatore",
       forbiddenShiftTypes: [],
       type: ResourceType.PART_TIME_70,
+      fixedDays: [Days.Tuesday, Days.Wednesday, Days.Thursday]
+    },
+    {
+      id: "5",
+      firstName: "A.",
+      lastName: "Canavese",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
       fixedDays: []
-    }))
+    },
+    {
+      id: "6",
+      firstName: "L.",
+      lastName: "Canavese",
+      forbiddenShiftTypes: [],
+      type: ResourceType.PART_TIME_50,
+      fixedDays: [Days.Tuesday, Days.Wednesday]
+    },
+    {
+      id: "7",
+      firstName: "F.",
+      lastName: "Chiappa",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "8",
+      firstName: "M.",
+      lastName: "Colman",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "9",
+      firstName: "S.",
+      lastName: "Copani",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "10",
+      firstName: "L.",
+      lastName: "Dragomir",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "11",
+      firstName: "D.",
+      lastName: "Frequenti",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "12",
+      firstName: "A.",
+      lastName: "Gallizio",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "13",
+      firstName: "O.",
+      lastName: "Kuku",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "14",
+      firstName: "C.",
+      lastName: "Magnino",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "15",
+      firstName: "R.",
+      lastName: "Marenco",
+      forbiddenShiftTypes: [],
+      type: ResourceType.PART_TIME_70,
+      fixedDays: [Days.Wednesday, Days.Thursday, Days.Friday]
+    },
+    {
+      id: "16",
+      firstName: "E.",
+      lastName: "Nita",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "17",
+      firstName: "T.",
+      lastName: "Odasso",
+      forbiddenShiftTypes: [],
+      type: ResourceType.PART_TIME_70,
+      fixedDays: [Days.Monday, Days.Tuesday, Days.Saturday]
+    },
+    {
+      id: "18",
+      firstName: "L.",
+      lastName: "Odello",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "19",
+      firstName: "J.",
+      lastName: "Passos Ramos",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "20",
+      firstName: "C.",
+      lastName: "Roberi",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "21",
+      firstName: "C.",
+      lastName: "Sansone",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "22",
+      firstName: "A.",
+      lastName: "Sardo",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "23",
+      firstName: "S.",
+      lastName: "Sereno",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "24",
+      firstName: "O.",
+      lastName: "Silva Camara",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "25",
+      firstName: "I.",
+      lastName: "Simionescu",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "26",
+      firstName: "L.",
+      lastName: "Smirnova",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    },
+    {
+      id: "27",
+      firstName: "A.",
+      lastName: "Vieira Dos Santos",
+      forbiddenShiftTypes: [],
+      type: ResourceType.FULL_TIME,
+      fixedDays: []
+    }
   ];
 
   // Lista mesi da Maggio ad Aprile
@@ -583,7 +772,7 @@ export default function Page() {
   // ROWS
   const rows = useMemo(() =>
     resources.map((resource, rowIdx) => {
-      const row: any = { resourceName: resource.firstName };
+      const row: any = { resourceName: resource.lastName + ' ' + resource.firstName };
       dateArray.forEach(date => {
         row[date] = matrix[resource.id]?.[date];
       });
