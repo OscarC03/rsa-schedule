@@ -665,9 +665,13 @@ export default function Page() {
   }
 
   const convertDateToString = (date: string): string => {
-    let currDate = new Date(date);
-    const dateTxt: string = currDate.toLocaleDateString('it-IT', {day: "2-digit", month: "short"});
-    return dateTxt;
+    const currDate = new Date(date);
+    // Ottieni giorno della settimana in italiano, 3 lettere, con la prima maiuscola
+    const dayOfWeek = currDate.toLocaleDateString('it-IT', { weekday: 'short' });
+    const day = currDate.toLocaleDateString('it-IT', { day: "2-digit" });
+    const month = currDate.toLocaleDateString('it-IT', { month: "short" });
+    // Es: "Gio 01 mag"
+    return `${dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1)} ${day} ${month}`;
   }
 
   useEffect(() => {
