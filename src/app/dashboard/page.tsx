@@ -351,9 +351,8 @@ export default function Page() {
     const sortedResources = [
       ...resources.filter(r => r.type === ResourceType.FULL_TIME),
       ...resources.filter(r => r.type !== ResourceType.FULL_TIME)
-    ];
-    return sortedResources.map((resource, rowIdx) => {
-      const row: any = { resourceName: resource.lastName + ' ' + resource.firstName };
+    ];    return sortedResources.map((resource, rowIdx) => {
+      const row: any = { resourceName: resource.firstName + ' ' + resource.lastName.charAt(0) + '.' };
       dateArray.forEach(date => {
         row[date] = matrix[resource.id]?.[date];
       });

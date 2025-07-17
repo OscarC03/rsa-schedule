@@ -3,7 +3,7 @@ import { Days, Resource, ResourceType } from "@/model/model";
 export const resources: Resource[] = [
   {
     id: "1",
-    firstName: "V.",
+    firstName: "Valeria",
     lastName: "Aschero",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -11,7 +11,7 @@ export const resources: Resource[] = [
   },
   {
     id: "2",
-    firstName: "L.",
+    firstName: "Loredana",
     lastName: "Baudino",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -19,7 +19,7 @@ export const resources: Resource[] = [
   },
   {
     id: "3",
-    firstName: "V.",
+    firstName: "Valentina",
     lastName: "Borgna",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -27,7 +27,7 @@ export const resources: Resource[] = [
   },
   {
     id: "4",
-    firstName: "E.",
+    firstName: "Elda",
     lastName: "Briatore",
     forbiddenShiftTypes: [],
     type: ResourceType.PART_TIME_70,
@@ -35,7 +35,7 @@ export const resources: Resource[] = [
   },
   {
     id: "5",
-    firstName: "A.",
+    firstName: "Anita",
     lastName: "Canavese",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -43,15 +43,14 @@ export const resources: Resource[] = [
   },
   {
     id: "6",
-    firstName: "L.",
+    firstName: "Laura",
     lastName: "Canavese",
     forbiddenShiftTypes: [],
     type: ResourceType.PART_TIME_50,
     fixedDays: [Days.Tuesday, Days.Wednesday]
-  },
-  {
+  },  {
     id: "7",
-    firstName: "F.",
+    firstName: "Franca",
     lastName: "Chiappa",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -59,7 +58,7 @@ export const resources: Resource[] = [
   },
   {
     id: "8",
-    firstName: "M.",
+    firstName: "Michela",
     lastName: "Colman",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -67,7 +66,7 @@ export const resources: Resource[] = [
   },
   {
     id: "9",
-    firstName: "S.",
+    firstName: "Sabahete",
     lastName: "Copani",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -75,7 +74,7 @@ export const resources: Resource[] = [
   },
   {
     id: "10",
-    firstName: "L.",
+    firstName: "Lidia",
     lastName: "Dragomir",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -83,7 +82,7 @@ export const resources: Resource[] = [
   },
   {
     id: "11",
-    firstName: "D.",
+    firstName: "Donatella",
     lastName: "Frequenti",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -91,7 +90,7 @@ export const resources: Resource[] = [
   },
   {
     id: "12",
-    firstName: "A.",
+    firstName: "Antonietta",
     lastName: "Gallizio",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -99,7 +98,7 @@ export const resources: Resource[] = [
   },
   {
     id: "13",
-    firstName: "O.",
+    firstName: "Ol'ha",
     lastName: "Kuku",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -107,7 +106,7 @@ export const resources: Resource[] = [
   },
   {
     id: "14",
-    firstName: "C.",
+    firstName: "Clara",
     lastName: "Magnino",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -115,15 +114,14 @@ export const resources: Resource[] = [
   },
   {
     id: "15",
-    firstName: "R.",
+    firstName: "Roberta",
     lastName: "Marenco",
     forbiddenShiftTypes: [],
     type: ResourceType.PART_TIME_70,
     fixedDays: [Days.Wednesday, Days.Thursday, Days.Friday]
-  },
-  {
+  },  {
     id: "16",
-    firstName: "E.",
+    firstName: "Eleonora",
     lastName: "Nita",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -131,7 +129,7 @@ export const resources: Resource[] = [
   },
   {
     id: "17",
-    firstName: "T.",
+    firstName: "Tiziana",
     lastName: "Odasso",
     forbiddenShiftTypes: [],
     type: ResourceType.PART_TIME_70,
@@ -139,7 +137,7 @@ export const resources: Resource[] = [
   },
   {
     id: "18",
-    firstName: "L.",
+    firstName: "Luisa",
     lastName: "Odello",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -147,7 +145,7 @@ export const resources: Resource[] = [
   },
   {
     id: "19",
-    firstName: "J.",
+    firstName: "Josinete",
     lastName: "Passos Ramos",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -155,7 +153,7 @@ export const resources: Resource[] = [
   },
   {
     id: "20",
-    firstName: "C.",
+    firstName: "Candida",
     lastName: "Roberi",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -163,7 +161,7 @@ export const resources: Resource[] = [
   },
   {
     id: "21",
-    firstName: "C.",
+    firstName: "Calogero",
     lastName: "Sansone",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -171,7 +169,7 @@ export const resources: Resource[] = [
   },
   {
     id: "22",
-    firstName: "A.",
+    firstName: "Alessandra",
     lastName: "Sardo",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -179,7 +177,7 @@ export const resources: Resource[] = [
   },
   {
     id: "23",
-    firstName: "S.",
+    firstName: "Stefania",
     lastName: "Sereno",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -187,7 +185,7 @@ export const resources: Resource[] = [
   },
   {
     id: "24",
-    firstName: "O.",
+    firstName: "Osenira",
     lastName: "Silva Camara",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -195,7 +193,7 @@ export const resources: Resource[] = [
   },
   {
     id: "25",
-    firstName: "I.",
+    firstName: "Ioana Rodica",
     lastName: "Simionescu",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -203,7 +201,7 @@ export const resources: Resource[] = [
   },
   {
     id: "26",
-    firstName: "L.",
+    firstName: "Liudmyla",
     lastName: "Smirnova",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
@@ -211,7 +209,7 @@ export const resources: Resource[] = [
   },
   {
     id: "27",
-    firstName: "A.",
+    firstName: "Anna",
     lastName: "Vieira Dos Santos",
     forbiddenShiftTypes: [],
     type: ResourceType.FULL_TIME,
