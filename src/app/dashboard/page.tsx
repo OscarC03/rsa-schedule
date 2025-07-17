@@ -46,11 +46,17 @@ const PrintableTable = ({ columns, rows, selectedMonth }: {
     Permesso: 'PE',
     Malattia: 'MA'
   };
-  
-  // Funzione per estrarre solo il giorno dalla data (senza il mese)
+    // Funzione per estrarre solo il giorno dalla data (senza il mese)
   const extractOnlyDay = (date: string): string => {
     const currDate = new Date(date);
     return currDate.getDate().toString(); // Ottiene solo il giorno come numero
+  };
+
+  // Funzione per convertire il piano in testo per la stampa
+  const getFloorText = (floor: number): string => {
+    if (floor === 3) return "RA";
+    if (floor === 0) return "";
+    return floor.toString();
   };
   
   return (
@@ -137,10 +143,9 @@ const PrintableTable = ({ columns, rows, selectedMonth }: {
                         // Se assenza parziale (<8h), mostra turno (anche Riposo) + assenza
                         (typeof row[col.key].absenceHours === "number" && row[col.key].absenceHours > 0 && row[col.key].absenceHours < 8)
                           ? (
-                            <>
-                              {row[col.key].shiftType
+                            <>                              {row[col.key].shiftType
                                 ? (row[col.key].floor > 0
-                                    ? `${abbreviations[row[col.key].shiftType]}${row[col.key].floor} + `
+                                    ? `${abbreviations[row[col.key].shiftType]}${getFloorText(row[col.key].floor)} + `
                                     : `${abbreviations[row[col.key].shiftType]} + `)
                                 : ""}
                               {abbreviations[row[col.key].absence]}
@@ -154,11 +159,10 @@ const PrintableTable = ({ columns, rows, selectedMonth }: {
                               {typeof row[col.key].absenceHours === "number" && row[col.key].absenceHours > 0
                                 ? `(${row[col.key].absenceHours}h)` : ""}
                             </>
-                          )
-                      ) : (
+                          )                      ) : (
                         row[col.key]?.shiftType
                           ? (row[col.key].floor > 0
-                              ? `${abbreviations[row[col.key].shiftType]}${row[col.key].floor}`
+                              ? `${abbreviations[row[col.key].shiftType]}${getFloorText(row[col.key].floor)}`
                               : abbreviations[row[col.key].shiftType])
                           : ""
                       )}
@@ -443,6 +447,13 @@ export default function Page() {
         }
       }
     `,  });
+
+  // Funzione per convertire il piano in testo per la stampa
+  const getFloorText = (floor: number): string => {
+    if (floor === 3) return "RA";
+    if (floor === 0) return "";
+    return floor.toString();
+  };
 
   if (isLoading)
     return <LoadingScreen />;

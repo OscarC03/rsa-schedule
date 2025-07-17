@@ -48,21 +48,26 @@ export const EditableCell = memo(function EditableCell({
   const [selectedShift, setSelectedShift] = useState<ShiftType>(value?.shiftType || ShiftType.Free);
   const [selectedFloor, setSelectedFloor] = useState<number>(value?.floor || 0);
   const [selectedAbsence, setSelectedAbsence] = useState<AbsenceType | undefined>(value?.absence);
-  const [absenceHours, setAbsenceHours] = useState<number | undefined>(value?.absenceHours);
+  const [absenceHours, setAbsenceHours] = useState<number | undefined>(value?.absenceHours);  // Floor options - aggiornato per i nuovi piani (1, 2, 3=RA)
+  const floorOptions = [0, 1, 2, 3];
 
-  // Floor options - changed to only 4 floors
-  const floorOptions = [0, 1, 2, 3, 4];
+  // Funzione helper per convertire il numero del piano nel nome
+  const getFloorName = (floor: number): string => {
+    if (floor === 3) return "RA";
+    if (floor === 0) return "";
+    return floor.toString();
+  };
 
   // Visualizzazione nome turno e piano in italiano nella cella
   let display = "";
   if (value && typeof value === "object" && value !== null) {
     if (value.absence) {
       // Se ci sono ore di assenza parziali (<8), mostra sia turno che assenza
-      if (typeof value.absenceHours === "number" && value.absenceHours > 0 && value.absenceHours < 8) {
-        // Mostra turno (anche Riposo) + assenza parziale
+      if (typeof value.absenceHours === "number" && value.absenceHours > 0 && value.absenceHours < 8) {        // Mostra turno (anche Riposo) + assenza parziale
         if (value.shiftType) {
           const name = italianNames[value.shiftType as ShiftType] || value.shiftType;
-          display = value.floor > 0 ? `${name} (${value.floor})` : name;
+          const floorName = getFloorName(value.floor);
+          display = floorName ? `${name} (${floorName})` : name;
           display += ` + ${italianNames[value.absence] || value.absence} (${value.absenceHours}h)`;
         } else {
           display = `${italianNames[value.absence] || value.absence} (${value.absenceHours}h)`;
@@ -77,7 +82,8 @@ export const EditableCell = memo(function EditableCell({
     } else if (typeof value.shiftType === "string") {
       // Mostra sempre il turno, anche "Riposo"
       const name = italianNames[value.shiftType as ShiftType] || value.shiftType;
-      display = value.floor > 0 ? `${name} (${value.floor})` : name;
+      const floorName = getFloorName(value.floor);
+      display = floorName ? `${name} (${floorName})` : name;
     }
   }
 
@@ -358,9 +364,8 @@ export const EditableCell = memo(function EditableCell({
                       if (selectedFloor !== floor) {
                         e.currentTarget.style.boxShadow = "none";
                       }
-                    }}
-                  >
-                    {floor === 0 ? "Nessuno" : floor.toString()}
+                    }}                  >
+                    {floor === 0 ? "Nessuno" : (floor === 3 ? "RA" : floor.toString())}
                   </button>
                 ))}
               </div>

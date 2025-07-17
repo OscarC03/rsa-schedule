@@ -151,12 +151,11 @@ function assignFloors(shifts: ResourceShift[]) {
     shifts.filter(s => s.shiftType === ShiftType.Split).sort(sortByResourceId),
     weekIndex
   );
-
-  // Morning: 1 at floor 4, rest floors 1-3
+  // Morning: 1 at floor RA (3), rest floors 1-2
   if (morningShifts.length > 0) {
-    morningShifts[0].floor = 4;
+    morningShifts[0].floor = 3; // RA
     for (let i = 1; i < morningShifts.length; i++) {
-      morningShifts[i].floor = ((i - 1) % 3) + 1;
+      morningShifts[i].floor = ((i - 1) % 2) + 1; // Alterna tra piano 1 e 2
     }
   }
 
@@ -165,16 +164,16 @@ function assignFloors(shifts: ResourceShift[]) {
     s.floor = 0;
   });
 
-  // Afternoon: one for each floor 1-4
+  // Afternoon: one for each floor 1-3 (RA)
   afternoonShifts.forEach((s, idx) => {
-    s.floor = (idx % 4) + 1;
+    s.floor = (idx % 3) + 1; // Alterna tra 1, 2, 3(RA)
   });
 
-  // Split: 1 at floor 4, rest floors 1-3
+  // Split: 1 at floor RA (3), rest floors 1-2
   if (splitShifts.length > 0) {
-    splitShifts[0].floor = 4;
+    splitShifts[0].floor = 3; // RA
     for (let i = 1; i < splitShifts.length; i++) {
-      splitShifts[i].floor = ((i - 1) % 3) + 1;
+      splitShifts[i].floor = ((i - 1) % 2) + 1; // Alterna tra piano 1 e 2
     }
   }
 

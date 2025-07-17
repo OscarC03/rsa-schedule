@@ -40,9 +40,8 @@ const ShiftSummaryBar: React.FC<ShiftSummaryBarProps> = ({
   // Calcola il riepilogo per ogni piano
   const calculateFloorSummary = (): FloorSummary[] => {
     const floorSummaries: Record<number, FloorSummary> = {};
-    
-    // Inizializza i riepiloghi per i piani 1-4 + piano 0 (nessun piano)
-    for (let floor = 0; floor <= 4; floor++) {
+      // Inizializza i riepiloghi per i piani 1-3 (RA) + piano 0 (nessun piano)
+    for (let floor = 0; floor <= 3; floor++) {
       floorSummaries[floor] = {
         floor,
         shiftCounts: {
@@ -114,6 +113,13 @@ const ShiftSummaryBar: React.FC<ShiftSummaryBarProps> = ({
       Free: "🏖️"
     };
     return symbols[shiftType] || "📋";
+  };
+
+  // Funzione helper per convertire il numero del piano nel nome
+  const getFloorDisplayName = (floor: number): string => {
+    if (floor === 0) return "Senza Piano";
+    if (floor === 3) return "Piano RA";
+    return `Piano ${floor}`;
   };
 
   return (
@@ -198,7 +204,7 @@ const ShiftSummaryBar: React.FC<ShiftSummaryBarProps> = ({
                 fontSize: "14px",
                 fontWeight: 600
               }}>
-                {floorSummary.floor === 0 ? "Senza Piano" : `Piano ${floorSummary.floor}`}
+                {getFloorDisplayName(floorSummary.floor)}
               </h4>
               <span style={{
                 backgroundColor: "#f3f4f6",
