@@ -3,13 +3,15 @@
 import { memo, useRef, useState } from "react";
 import { useDrag, useDrop } from "react-dnd";
 import ReactDOM from "react-dom";
-import { ResourceShift, ShiftType, AbsenceType } from "@/model/model";
+import { ResourceShift, ShiftType, AbsenceType, Resource, Days, ResourceType } from "@/model/model";
 import { CELL_TYPE, CELL_HEIGHT, CELL_WIDTH, shiftTypes, absenceTypes, italianNames } from "./constants";
 
 interface EditableCellProps {
   rowIdx: number;
   colIdx: number;
   value: ResourceShift | undefined;
+  resource: Resource;
+  currentDate: string;
   onCellDrop: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void;
   coloriTurni: Record<string, string>;
   onShiftChange: (rowIdx: number, colIdx: number, shiftType: ShiftType, floor: number, absence?: AbsenceType, absenceHours?: number) => void;
@@ -19,6 +21,8 @@ export const EditableCell = memo(function EditableCell({
   rowIdx,
   colIdx,
   value,
+  resource,
+  currentDate,
   onCellDrop,
   coloriTurni,
   onShiftChange
@@ -46,9 +50,36 @@ export const EditableCell = memo(function EditableCell({
 
   // Add state for selected shift type and floor
   const [selectedShift, setSelectedShift] = useState<ShiftType>(value?.shiftType || ShiftType.Free);
-  const [selectedFloor, setSelectedFloor] = useState<number>(value?.floor || 0);
-  const [selectedAbsence, setSelectedAbsence] = useState<AbsenceType | undefined>(value?.absence);
-  const [absenceHours, setAbsenceHours] = useState<number | undefined>(value?.absenceHours);  // Floor options - aggiornato per i nuovi piani (1, 2, 3=RA)
+  const [selectedFloor, setSelectedFloor] = useState<number>(value?.floor || 0);  const [selectedAbsence, setSelectedAbsence] = useState<AbsenceType | undefined>(value?.absence);
+  const [absenceHours, setAbsenceHours] = useState<number | undefined>(value?.absenceHours);
+
+  // Helper function to convert JavaScript day of week to our Days enum
+  const getJSDayOfWeek = (date: Date): Days => {
+    const jsDay = date.getDay(); // Sunday = 0, Monday = 1, etc.
+    // Convert to our enum: Monday = 1, Tuesday = 2, ..., Sunday = 7
+    return jsDay === 0 ? Days.Sunday : jsDay as Days;
+  };
+  // Helper function to check if a resource should work on a specific date
+  const shouldResourceWork = (resource: Resource, dateStr: string): boolean => {
+    // Full-time resources work every day
+    if (resource.type === ResourceType.FULL_TIME) {
+      return true;
+    }
+    
+    // Part-time resources work only on their fixed days
+    if (resource.fixedDays.length === 0) {
+      return true; // If no fixed days specified, assume they can work any day
+    }
+    
+    const date = new Date(dateStr);
+    const dayOfWeek = getJSDayOfWeek(date);
+    return resource.fixedDays.includes(dayOfWeek);
+  };
+
+  // Check if this is a non-working day for part-time employee
+  const isNonWorkingDay = !shouldResourceWork(resource, currentDate);
+
+  // Floor options - aggiornato per i nuovi piani (1, 2, 3=RA)
   const floorOptions = [0, 1, 2, 3];
 
   // Funzione helper per convertire il numero del piano nel nome
@@ -57,7 +88,6 @@ export const EditableCell = memo(function EditableCell({
     if (floor === 0) return "";
     return floor.toString();
   };
-
   // Visualizzazione nome turno e piano in italiano nella cella
   let display = "";
   if (value && typeof value === "object" && value !== null) {
@@ -80,10 +110,15 @@ export const EditableCell = memo(function EditableCell({
         }
       }
     } else if (typeof value.shiftType === "string") {
-      // Mostra sempre il turno, anche "Riposo"
-      const name = italianNames[value.shiftType as ShiftType] || value.shiftType;
-      const floorName = getFloorName(value.floor);
-      display = floorName ? `${name} (${floorName})` : name;
+      // Gestione speciale per risorse part-time nei giorni di non lavoro
+      if (value.shiftType === ShiftType.Free && isNonWorkingDay) {
+        display = "Non previsto";
+      } else {
+        // Mostra sempre il turno, anche "Riposo"
+        const name = italianNames[value.shiftType as ShiftType] || value.shiftType;
+        const floorName = getFloorName(value.floor);
+        display = floorName ? `${name} (${floorName})` : name;
+      }
     }
   }
 
@@ -142,15 +177,16 @@ export const EditableCell = memo(function EditableCell({
   const closeMenu = () => setIsEditing(false);
 
   return (
-    <>
-      <div
+    <>      <div
         ref={setRef}
         style={{
           opacity: isDragging ? 0.5 : 1,
           backgroundColor: value?.absence
             ? coloriTurni[value.absence]
             : value && value.shiftType
-              ? coloriTurni[value.shiftType]
+              ? (value.shiftType === ShiftType.Free && isNonWorkingDay 
+                  ? "#f8f9fa" // Light gray for non-working days
+                  : coloriTurni[value.shiftType])
               : undefined,
           cursor: "move",
           minWidth: CELL_WIDTH,

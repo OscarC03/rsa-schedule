@@ -1,4 +1,34 @@
-import { Resource, ResourceShift, ResourceType, ShiftType } from "@/model/model";
+import { Resource, ResourceShift, ResourceType, ShiftType, Days } from "@/model/model";
+
+// Helper function to convert JavaScript day of week to our Days enum
+const getJSDayOfWeek = (date: Date): Days => {
+  const jsDay = date.getDay(); // Sunday = 0, Monday = 1, etc.
+  // Convert to our enum: Monday = 1, Tuesday = 2, ..., Sunday = 7
+  return jsDay === 0 ? Days.Sunday : jsDay as Days;
+};
+
+// Helper function to check if a resource should work on a specific date
+const shouldResourceWork = (resource: Resource, date: Date): boolean => {
+  // Full-time resources work every day
+  if (resource.type === ResourceType.FULL_TIME) {
+    return true;
+  }
+  
+  // Part-time resources work only on their fixed days
+  if (resource.fixedDays.length === 0) {
+    return true; // If no fixed days specified, assume they can work any day
+  }
+  
+  const dayOfWeek = getJSDayOfWeek(date);
+  return resource.fixedDays.includes(dayOfWeek);
+};
+
+// Debug function for part-time rotation
+const logPartTimeDebug = (resourceId: string, currentDate: Date, workingDayIndex: number, cycleIdx: number, shift: ShiftType) => {
+  if (typeof window !== 'undefined') {
+    console.log(`[PART-TIME DEBUG] ${resourceId} - ${currentDate.toDateString()} - Working day #${workingDayIndex} - Cycle ${cycleIdx} - Shift: ${shift}`);
+  }
+};
 
 export const generateShift = (startDate: Date, resources: Resource[]): ResourceShift[] => {
   const DAILY_REQUIREMENTS: Record<ShiftType, number> = {
@@ -25,15 +55,36 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
   const month = startDate.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
+  // Separate full-time and part-time resources
+  const fullTimeResources = resources.filter(r => r.type === ResourceType.FULL_TIME);
+  const partTimeResources = resources.filter(r => r.type !== ResourceType.FULL_TIME);
+
   const resourceCycleIndex: Record<string, number> = {};
-  resources.forEach((r, i) => {
+  fullTimeResources.forEach((r, i) => {
     resourceCycleIndex[r.id] = i % SHIFT_CYCLE.length;
   });
+  // Separate cycle tracking for part-time resources
+  const partTimeShiftCycle: ShiftType[] = [
+    ShiftType.Morning,
+    ShiftType.Afternoon,
+    ShiftType.Split,
+    ShiftType.Free,
+  ];
+  
+  const partTimeCycleIndex: Record<string, number> = {};
+  partTimeResources.forEach((r, i) => {
+    partTimeCycleIndex[r.id] = i % partTimeShiftCycle.length;
+  });
 
-  const schedule: ResourceShift[] = [];
+  // Track working days count for part-time resources
+  const partTimeWorkingDaysCount: Record<string, number> = {};
+  partTimeResources.forEach(r => {
+    partTimeWorkingDaysCount[r.id] = 0;
+  });
 
-  for (let day = 1; day <= daysInMonth; day++) {
-    const currentDate = new Date(year, month, day + 1).toISOString().split("T")[0];
+  const schedule: ResourceShift[] = [];for (let day = 1; day <= daysInMonth; day++) {
+    const currentDate = new Date(year, month, day);
+    const currentDateStr = new Date(year, month, day + 1).toISOString().split("T")[0];
 
     const dailyCount: Record<ShiftType, number> = {
       Morning: 0,
@@ -44,21 +95,13 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
       Free: 0,
     };
 
-    const rotatedResources = rotateArray(resources, day);
-
-    // --- Assegna i turni secondo il ciclo, ma il primo Morning del giorno diventa MorningI ---
+    // === STEP 1: Assign shifts to FULL-TIME resources ===
+    const rotatedFullTime = rotateArray(fullTimeResources, day);
     let morningIToAssign = 1; // solo uno per giorno
-    for (const resource of rotatedResources) {
+
+    for (const resource of rotatedFullTime) {
       const cycleIdx = resourceCycleIndex[resource.id];
       let shift = SHIFT_CYCLE[cycleIdx];
-
-      // Skip Night if resource is part-time
-      if (
-        shift === ShiftType.Night &&
-        (resource.type === ResourceType.PART_TIME_50 || resource.type === ResourceType.PART_TIME_70)
-      ) {
-        shift = ShiftType.Free;
-      }
 
       // Se il turno è Morning e non abbiamo ancora assegnato MorningI, assegna MorningI
       if (shift === ShiftType.Morning && morningIToAssign > 0) {
@@ -70,7 +113,7 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
         resourceId: resource.id,
         shiftType: shift,
         shiftCode: shift,
-        date: currentDate,
+        date: currentDateStr,
         floor: 0, // da assegnare dopo
         cycleIndex: cycleIdx,
       });
@@ -82,8 +125,50 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
         dailyCount[shift]++;
       }
       resourceCycleIndex[resource.id] = (cycleIdx + 1) % SHIFT_CYCLE.length;
+    }    // === STEP 2: Assign shifts to PART-TIME resources on their working days ===
+    for (const resource of partTimeResources) {
+      if (shouldResourceWork(resource, currentDate)) {        // Use working days count for cycle progression, not calendar days
+        const workingDayIndex = partTimeWorkingDaysCount[resource.id];
+        const cycleIdx = (partTimeCycleIndex[resource.id] + workingDayIndex) % partTimeShiftCycle.length;
+        let shift = partTimeShiftCycle[cycleIdx];
+
+        logPartTimeDebug(resource.id, currentDate, workingDayIndex, cycleIdx, shift);
+
+        // Debug logging for part-time shift assignment
+        logPartTimeDebug(resource.id, currentDate, workingDayIndex, cycleIdx, shift);
+
+        schedule.push({
+          resourceId: resource.id,
+          shiftType: shift,
+          shiftCode: shift,
+          date: currentDateStr,
+          floor: 0, // da assegnare dopo
+          cycleIndex: cycleIdx,
+        });
+
+        if (shift === ShiftType.Morning) {
+          dailyCount[ShiftType.Morning]++;
+        } else {
+          dailyCount[shift]++;
+        }
+        
+        // Increment working days count only on working days
+        partTimeWorkingDaysCount[resource.id]++;
+      } else {
+        // Part-time resource not working today
+        schedule.push({
+          resourceId: resource.id,
+          shiftType: ShiftType.Free,
+          shiftCode: ShiftType.Free,
+          date: currentDateStr,
+          floor: 0,
+          cycleIndex: 0,
+        });
+        dailyCount[ShiftType.Free]++;
+      }
     }
 
+    // === STEP 3: Fill remaining requirements with available Free resources ===
     for (const shiftType of ["Morning", "Afternoon", "Split", "Night"] as ShiftType[]) {
       while (
         shiftType === ShiftType.Morning
@@ -92,7 +177,7 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
       ) {
         const free = schedule.find(
           (s) =>
-            s.date === currentDate &&
+            s.date === currentDateStr &&
             s.shiftType === ShiftType.Free &&
             !(
               shiftType === ShiftType.Night &&
@@ -101,6 +186,12 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
         );
 
         if (!free) break;
+
+        // Check if the resource can work on this day before assigning a shift
+        const resource = resources.find(r => r.id === free.resourceId);
+        if (resource && !shouldResourceWork(resource, currentDate)) {
+          break; // Don't assign shifts to part-time workers on their off days
+        }
 
         // Se stai assegnando Morning, non assegnare MorningI (già assegnato)
         free.shiftType = shiftType;
@@ -112,18 +203,16 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
         }
         dailyCount[ShiftType.Free]--;
       }
-    }
+    }    // Assegna i floor
+    const shiftsOfDay = schedule.filter(s => s.date === currentDateStr);
 
-    // Assegna i floor
-    const shiftsOfDay = schedule.filter(s => s.date === currentDate);
-
-    assignFloors(shiftsOfDay);
+    assignFloors(shiftsOfDay, resources);
   }
 
   return schedule;
 };
 
-function assignFloors(shifts: ResourceShift[]) {
+function assignFloors(shifts: ResourceShift[], resources: Resource[] = []) {
   const day = new Date(shifts[0].date).getDate();
   const weekIndex = Math.floor((day - 1) / 7); // 0-based index for the week of the month
 
@@ -137,47 +226,58 @@ function assignFloors(shifts: ResourceShift[]) {
     return arr.slice(shift).concat(arr.slice(0, shift));
   };
 
-  // Morning: solo quelli che NON sono MorningI
-  const morningShifts = rotate(
-    shifts.filter(s => s.shiftType === ShiftType.Morning).sort(sortByResourceId),
-    weekIndex
-  );
-  const morningIShifts = shifts.filter(s => s.shiftType === ShiftType.MorningI); // MorningI separati
-  const afternoonShifts = rotate(
-    shifts.filter(s => s.shiftType === ShiftType.Afternoon).sort(sortByResourceId),
-    weekIndex
-  );
-  const splitShifts = rotate(
-    shifts.filter(s => s.shiftType === ShiftType.Split).sort(sortByResourceId),
-    weekIndex
-  );
-  // Morning: 1 at floor RA (3), rest floors 1-2
-  if (morningShifts.length > 0) {
-    morningShifts[0].floor = 3; // RA
-    for (let i = 1; i < morningShifts.length; i++) {
-      morningShifts[i].floor = ((i - 1) % 2) + 1; // Alterna tra piano 1 e 2
+  // Separate full-time and part-time shifts by shift type
+  const getShiftsByType = (shiftType: ShiftType, isFullTime: boolean = true) => {
+    return shifts.filter(s => {
+      if (s.shiftType !== shiftType) return false;
+      const resource = resources.find(r => r.id === s.resourceId);
+      const resourceIsFullTime = resource?.type === ResourceType.FULL_TIME;
+      return resourceIsFullTime === isFullTime;
+    }).sort(sortByResourceId);
+  };
+
+  // Get shifts by type, separated by resource type
+  const fullTimeMorningShifts = rotate(getShiftsByType(ShiftType.Morning, true), weekIndex);
+  const partTimeMorningShifts = rotate(getShiftsByType(ShiftType.Morning, false), weekIndex);
+  
+  const morningIShifts = shifts.filter(s => s.shiftType === ShiftType.MorningI);
+  
+  const fullTimeAfternoonShifts = rotate(getShiftsByType(ShiftType.Afternoon, true), weekIndex);
+  const partTimeAfternoonShifts = rotate(getShiftsByType(ShiftType.Afternoon, false), weekIndex);
+  
+  const fullTimeSplitShifts = rotate(getShiftsByType(ShiftType.Split, true), weekIndex);
+  const partTimeSplitShifts = rotate(getShiftsByType(ShiftType.Split, false), weekIndex);
+
+  // Assign floors for Morning shifts (Full-time + Part-time combined with separate rotation)
+  const allMorningShifts = [...fullTimeMorningShifts, ...partTimeMorningShifts];
+  if (allMorningShifts.length > 0) {
+    allMorningShifts[0].floor = 3; // RA (first person)
+    for (let i = 1; i < allMorningShifts.length; i++) {
+      allMorningShifts[i].floor = ((i - 1) % 2) + 1; // Alternate between floor 1 and 2
     }
   }
 
-  // MorningI: nessun piano
+  // MorningI: no floor
   morningIShifts.forEach(s => {
     s.floor = 0;
   });
 
-  // Afternoon: one for each floor 1-3 (RA)
-  afternoonShifts.forEach((s, idx) => {
-    s.floor = (idx % 3) + 1; // Alterna tra 1, 2, 3(RA)
+  // Assign floors for Afternoon shifts (Full-time + Part-time combined with separate rotation)
+  const allAfternoonShifts = [...fullTimeAfternoonShifts, ...partTimeAfternoonShifts];
+  allAfternoonShifts.forEach((s, idx) => {
+    s.floor = (idx % 3) + 1; // Rotate between floors 1, 2, 3(RA)
   });
 
-  // Split: 1 at floor RA (3), rest floors 1-2
-  if (splitShifts.length > 0) {
-    splitShifts[0].floor = 3; // RA
-    for (let i = 1; i < splitShifts.length; i++) {
-      splitShifts[i].floor = ((i - 1) % 2) + 1; // Alterna tra piano 1 e 2
+  // Assign floors for Split shifts (Full-time + Part-time combined with separate rotation)
+  const allSplitShifts = [...fullTimeSplitShifts, ...partTimeSplitShifts];
+  if (allSplitShifts.length > 0) {
+    allSplitShifts[0].floor = 3; // RA (first person)
+    for (let i = 1; i < allSplitShifts.length; i++) {
+      allSplitShifts[i].floor = ((i - 1) % 2) + 1; // Alternate between floor 1 and 2
     }
   }
 
-  // Night, Free, MorningI: no floor (MorningI già gestito sopra)
+  // Night, Free: no floor
   shifts.forEach(s => {
     if (
       s.shiftType === ShiftType.Night ||
@@ -208,32 +308,33 @@ export function replicateScheduleForMonth(
     ShiftType.Free,
   ];
 
-  const baseYear = new Date(originalSchedule[0].date).getFullYear();
-  const baseMonth = new Date(originalSchedule[0].date).getMonth();
-  const baseDaysInMonth = new Date(baseYear, baseMonth + 1, 0).getDate();
+  const partTimeShiftCycle: ShiftType[] = [
+    ShiftType.Morning,
+    ShiftType.Afternoon,
+    ShiftType.Split,
+    ShiftType.Free,
+  ];
+  // Separate full-time and part-time resources
+  const fullTimeResources = resources.filter(r => r.type === ResourceType.FULL_TIME);
+  const partTimeResources = resources.filter(r => r.type !== ResourceType.FULL_TIME);
 
   const newSchedule: ResourceShift[] = [];
 
+  // Track working days count for part-time resources to manage their rotation independently
+  const partTimeWorkingDaysCount: Record<string, number> = {};
+  partTimeResources.forEach(r => {
+    partTimeWorkingDaysCount[r.id] = 0;
+  });
+
   for (let day = 1; day <= daysInTargetMonth; day++) {
+    const currentDate = new Date(targetYear, targetMonth, day);
     const currentDateStr = new Date(targetYear, targetMonth, day + 1).toISOString().split("T")[0];
 
-    // Per ogni risorsa calcoliamo il turno assegnato quel giorno
-    for (const resource of resources) {
-      // indice ultimo turno fatto
+    // Handle full-time resources
+    for (const resource of fullTimeResources) {
       const lastIndex = lastShiftIndexByResourceId[resource.id] ?? 0;
-
-      // calcolo indice turno per il giorno corrente:
-      // (ultimo indice + giorno corrente) modulo lunghezza ciclo
       const cycleIdx = (lastIndex + day) % SHIFT_CYCLE.length;
       let shift = SHIFT_CYCLE[cycleIdx];
-
-      // Skip Night se part-time
-      if (
-        shift === ShiftType.Night &&
-        (resource.type === ResourceType.PART_TIME_50 || resource.type === ResourceType.PART_TIME_70)
-      ) {
-        shift = ShiftType.Free;
-      }
 
       newSchedule.push({
         resourceId: resource.id,
@@ -244,13 +345,45 @@ export function replicateScheduleForMonth(
         cycleIndex: cycleIdx,
       });
     }
-  }
 
+    // Handle part-time resources with independent rotation
+    for (const resource of partTimeResources) {
+      if (shouldResourceWork(resource, currentDate)) {        // Use working days count for cycle progression, not calendar days
+        const workingDayIndex = partTimeWorkingDaysCount[resource.id];
+        const lastIndex = lastShiftIndexByResourceId[resource.id] ?? 0;
+        const cycleIdx = (lastIndex + workingDayIndex) % partTimeShiftCycle.length;
+        let shift = partTimeShiftCycle[cycleIdx];
+
+        logPartTimeDebug(resource.id, currentDate, workingDayIndex, cycleIdx, shift);
+
+        newSchedule.push({
+          resourceId: resource.id,
+          shiftType: shift,
+          shiftCode: shift,
+          date: currentDateStr,
+          floor: 0,
+          cycleIndex: cycleIdx,
+        });
+
+        // Increment working days count only on working days
+        partTimeWorkingDaysCount[resource.id]++;
+      } else {
+        newSchedule.push({
+          resourceId: resource.id,
+          shiftType: ShiftType.Free,
+          shiftCode: ShiftType.Free,
+          date: currentDateStr,
+          floor: 0,
+          cycleIndex: 0,
+        });
+      }
+    }
+  }
   // assegna i floor per ogni giorno
   for (let day = 1; day <= daysInTargetMonth; day++) {
     const dateStr = new Date(targetYear, targetMonth, day + 1).toISOString().split("T")[0];
     const shiftsOfDay = newSchedule.filter(s => s.date === dateStr);
-    assignFloors(shiftsOfDay);
+    assignFloors(shiftsOfDay, resources);
   }
 
   return newSchedule;

@@ -327,21 +327,31 @@ export default function Page() {
           textAlign: "center"
         }}>{row.resourceName}</span>
       )
-    },
-    ...dateArray.map((date, colIdx) => ({
+    },    ...dateArray.map((date, colIdx) => ({
       key: date,
       name: convertDateToString(date),
       width: CELL_WIDTH,
-      render: (row: any, rowIdx: number) => (
-        <EditableCell
-          rowIdx={rowIdx}
-          colIdx={colIdx + 1}
-          value={row[date]}
-          onCellDrop={handleCellDrop}
-          coloriTurni={coloriTurni}
-          onShiftChange={handleShiftTypeChange}
-        />
-      )
+      render: (row: any, rowIdx: number) => {
+        // Ordina le risorse: prima full-time, poi part-time (mantenendo l'ordine originale)
+        const sortedResources = [
+          ...resources.filter(r => r.type === ResourceType.FULL_TIME),
+          ...resources.filter(r => r.type !== ResourceType.FULL_TIME)
+        ];
+        const resource = sortedResources[rowIdx];
+        
+        return (
+          <EditableCell
+            rowIdx={rowIdx}
+            colIdx={colIdx + 1}
+            value={row[date]}
+            resource={resource}
+            currentDate={date}
+            onCellDrop={handleCellDrop}
+            coloriTurni={coloriTurni}
+            onShiftChange={handleShiftTypeChange}
+          />
+        );
+      }
     }))
   ], [dateArray, coloriTurni]);
 
