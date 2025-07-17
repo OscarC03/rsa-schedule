@@ -45,7 +45,10 @@ export enum ShiftType {
 export enum AbsenceType {
     Ferie = 'Ferie',
     Permesso = 'Permesso',
-    Malattia = 'Malattia'
+    Malattia = 'Malattia',
+    RiposoCompensativo = 'RiposoCompensativo',
+    Riposo = 'Riposo',
+    RiposoCambioDivisa = 'RiposoCambioDivisa'
 }
 
 export class ResourceShift {

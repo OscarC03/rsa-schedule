@@ -12,9 +12,12 @@ export const coloriTurni: Record<string, string> = {
   Split: '#b4d8ff',      // azzurro pastello
   Night: '#c7bfff',      // viola pastello
   Free: '#f3f4f6',       // grigio pastello
-  Ferie: '#ffe4e1',
-  Permesso: '#fff9c4',
-  Malattia: '#e0e7ff',
+  Ferie: '#ffe4e1',      // rosa chiaro
+  Permesso: '#fff9c4',   // giallo chiaro
+  Malattia: '#e0e7ff',   // lilla chiaro
+  RiposoCompensativo: '#f0fdf4',  // verde molto chiaro
+  Riposo: '#fef3c7',     // ambra chiaro
+  RiposoCambioDivisa: '#ede9fe', // viola molto chiaro
 };
 
 export const CELL_TYPE = "CELL";
@@ -33,7 +36,10 @@ export const shiftTypes: ShiftType[] = [
 export const absenceTypes: AbsenceType[] = [
   AbsenceType.Ferie,
   AbsenceType.Permesso,
-  AbsenceType.Malattia
+  AbsenceType.Malattia,
+  AbsenceType.RiposoCompensativo,
+  AbsenceType.Riposo,
+  AbsenceType.RiposoCambioDivisa
 ];
 
 // Mappa dei nomi italiani per la visualizzazione
@@ -46,7 +52,10 @@ export const italianNames: Record<string, string> = {
   Free: 'Riposo',
   Ferie: 'Ferie',
   Permesso: 'Permesso',
-  Malattia: 'Malattia'
+  Malattia: 'Malattia',
+  RiposoCompensativo: 'Riposo Compensativo',
+  Riposo: 'Riposo',
+  RiposoCambioDivisa: 'Riposo Cambio Divisa'
 };
 
 // Lista mesi da Maggio ad Aprile

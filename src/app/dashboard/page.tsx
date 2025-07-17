@@ -33,8 +33,7 @@ const PrintableTable = ({ columns, rows, selectedMonth }: {
   // Calcola la larghezza della cella per la stampa in base al numero di colonne
   // in modo che tutto si adatti in una singola pagina
   const printCellWidth = Math.max(30, Math.min(60, Math.floor(700 / columns.length)));
-  
-  // Mappa delle abbreviazioni per i turni
+    // Mappa delle abbreviazioni per i turni
   const abbreviations: Record<string, string> = {
     Morning: 'M',
     MorningI: 'MI',
@@ -44,7 +43,10 @@ const PrintableTable = ({ columns, rows, selectedMonth }: {
     Free: 'F',
     Ferie: 'FE',
     Permesso: 'PE',
-    Malattia: 'MA'
+    Malattia: 'MA',
+    RiposoCompensativo: 'RC',
+    Riposo: 'R',
+    RiposoCambioDivisa: 'RCD'
   };
     // Funzione per estrarre solo il giorno dalla data (senza il mese)
   const extractOnlyDay = (date: string): string => {
@@ -64,8 +66,7 @@ const PrintableTable = ({ columns, rows, selectedMonth }: {
       <h2 style={{ textAlign: "center", marginBottom: "12px", fontSize: "14pt" }}>
         Turni OSS - {mesi.find(m => m.value === selectedMonth)?.label || 'Mensile'}
       </h2>
-      
-      {/* Legenda abbreviazioni */}
+        {/* Legenda abbreviazioni */}
       <div style={{ textAlign: "center", marginBottom: "10px", fontSize: "8pt" }}>
         <span style={{ marginRight: "8px" }}><strong>M</strong>=Mattina</span>
         <span style={{ marginRight: "8px" }}><strong>MI</strong>=Mattina Inf.</span>
@@ -73,9 +74,13 @@ const PrintableTable = ({ columns, rows, selectedMonth }: {
         <span style={{ marginRight: "8px" }}><strong>S</strong>=Spezzato</span>
         <span style={{ marginRight: "8px" }}><strong>N</strong>=Notte</span>
         <span style={{ marginRight: "8px" }}><strong>F</strong>=Libero</span>
+        <br />
         <span style={{ marginRight: "8px" }}><strong>FE</strong>=Ferie</span>
         <span style={{ marginRight: "8px" }}><strong>PE</strong>=Permesso</span>
-        <span><strong>MA</strong>=Malattia</span>
+        <span style={{ marginRight: "8px" }}><strong>MA</strong>=Malattia</span>
+        <span style={{ marginRight: "8px" }}><strong>RC</strong>=Riposo Comp.</span>
+        <span style={{ marginRight: "8px" }}><strong>R</strong>=Riposo</span>
+        <span><strong>RCD</strong>=Riposo C.D.</span>
       </div>
       
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "8pt", tableLayout: "fixed" }}>
