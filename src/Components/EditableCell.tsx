@@ -4,7 +4,7 @@ import { memo, useRef, useState } from "react";
 import { useDrag, useDrop } from "react-dnd";
 import ReactDOM from "react-dom";
 import { ResourceShift, ShiftType, AbsenceType, Resource, Days, ResourceType } from "@/model/model";
-import { CELL_TYPE, CELL_HEIGHT, CELL_WIDTH, shiftTypes, absenceTypes, italianNames } from "./constants";
+import { CELL_TYPE, CELL_HEIGHT, CELL_WIDTH, shiftTypes, absenceTypes, italianNames, getColorsForDate } from "./constants";
 
 interface EditableCellProps {
   rowIdx: number;
@@ -12,9 +12,11 @@ interface EditableCellProps {
   value: ResourceShift | undefined;
   resource: Resource;
   currentDate: string;
+  selectedYear: number;
+  selectedMonth: number;
   onCellDrop: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void;
-  coloriTurni: Record<string, string>;
   onShiftChange: (rowIdx: number, colIdx: number, shiftType: ShiftType, floor: number, absence?: AbsenceType, absenceHours?: number) => void;
+  onShiftColorChange?: (rowIdx: number, colIdx: number, customColor?: string) => void;
 }
 
 export const EditableCell = memo(function EditableCell({
@@ -23,10 +25,14 @@ export const EditableCell = memo(function EditableCell({
   value,
   resource,
   currentDate,
+  selectedYear,
+  selectedMonth,
   onCellDrop,
-  coloriTurni,
-  onShiftChange
+  onShiftChange,
+  onShiftColorChange
 }: EditableCellProps) {
+  // Get colors for this specific date
+  const coloriTurni = getColorsForDate(currentDate, selectedYear, selectedMonth);
   const [{ isDragging }, drag] = useDrag({
     type: CELL_TYPE,
     item: () => ({ rowIdx, colIdx, value }), // Using a function to get current value when dragging starts
@@ -126,7 +132,6 @@ export const EditableCell = memo(function EditableCell({
     ref.current = node;
     drag(drop(node));
   };
-
   // Apri il pannello laterale a destra invece che posizionare il menu vicino alla cella
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -135,6 +140,15 @@ export const EditableCell = memo(function EditableCell({
     setSelectedFloor(value?.floor || 0);
     setSelectedAbsence(value?.absence);
     setIsEditing(true);
+  };
+  // Handle right click for color customization
+  const handleRightClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onShiftColorChange && value) {
+      // Trigger color customization modal via parent component
+      onShiftColorChange(rowIdx, colIdx, value.customColor);
+    }
   };
   
   // Handle shift type selection
@@ -175,19 +189,29 @@ export const EditableCell = memo(function EditableCell({
   };
   
   const closeMenu = () => setIsEditing(false);
+  // Get the background color - prioritize custom color if available
+  const getBackgroundColor = () => {
+    if (value?.customColor) {
+      return value.customColor;
+    }
+    if (value?.absence) {
+      return coloriTurni[value.absence];
+    }
+    if (value?.shiftType) {
+      if (value.shiftType === ShiftType.Free && isNonWorkingDay) {
+        return "#f8f9fa"; // Light gray for non-working days
+      }
+      return coloriTurni[value.shiftType];
+    }
+    return undefined;
+  };
 
   return (
     <>      <div
         ref={setRef}
         style={{
           opacity: isDragging ? 0.5 : 1,
-          backgroundColor: value?.absence
-            ? coloriTurni[value.absence]
-            : value && value.shiftType
-              ? (value.shiftType === ShiftType.Free && isNonWorkingDay 
-                  ? "#f8f9fa" // Light gray for non-working days
-                  : coloriTurni[value.shiftType])
-              : undefined,
+          backgroundColor: getBackgroundColor(),
           cursor: "move",
           minWidth: CELL_WIDTH,
           maxWidth: CELL_WIDTH,
@@ -205,13 +229,26 @@ export const EditableCell = memo(function EditableCell({
           fontWeight: 600,
           userSelect: "none",
           color: value && value.shiftType === "Free" ? "#6b7280" : "#18181b",
-          border: "1px solid #e5e7eb",
-          textAlign: "center"
-        }}
-        title={value && value.shiftType ? value.shiftType.toString() : ""}
+          border: value?.customColor ? "2px solid #6366f1" : "1px solid #e5e7eb",
+          textAlign: "center",
+          position: "relative"
+        }}        title={`${value && value.shiftType ? value.shiftType.toString() : ""} • Click destro: personalizza colore • Doppio click: modifica turno`}
+        onContextMenu={handleRightClick}
         onDoubleClick={handleDoubleClick}
       >
         {display}
+        {value?.customColor && (
+          <div style={{
+            position: 'absolute',
+            top: '2px',
+            right: '2px',
+            width: '6px',
+            height: '6px',
+            backgroundColor: '#6366f1',
+            borderRadius: '50%',
+            border: '1px solid #fff'
+          }} />
+        )}
       </div>
       {isEditing && document.body && ReactDOM.createPortal(
         <div 

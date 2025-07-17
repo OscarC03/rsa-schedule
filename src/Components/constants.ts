@@ -20,6 +20,58 @@ export const coloriTurni: Record<string, string> = {
   RiposoCambioDivisa: '#ede9fe', // viola molto chiaro
 };
 
+// Colori alternativi per i turni (per giorni speciali)
+export const coloriTurniAlternativi: Record<string, string> = {
+  Morning: '#a7d8bd',    // verde più scuro
+  MorningI: '#8ed1d7',   // azzurro-verde più scuro
+  Afternoon: '#ffd48a',  // arancio più scuro
+  Split: '#9bc7ff',      // azzurro più scuro
+  Night: '#b8a9ff',      // viola più scuro
+  Free: '#e5e7eb',       // grigio più scuro
+  Ferie: '#ffb3b3',      // rosa più scuro
+  Permesso: '#fff176',   // giallo più scuro
+  Malattia: '#c4b5fd',   // lilla più scuro
+  RiposoCompensativo: '#dcfce7',  // verde più scuro
+  Riposo: '#fed7aa',     // ambra più scuro
+  RiposoCambioDivisa: '#ddd6fe', // viola più scuro
+};
+
+// Tipo per personalizzazioni colori giornaliere
+export interface DayColorCustomization {
+  date: string; // formato YYYY-MM-DD
+  useAlternativeColors: boolean;
+  customColors?: Record<string, string>;
+}
+
+// Storage per personalizzazioni colori per giorno
+export const getDayColorCustomizations = (year: number, month: number): DayColorCustomization[] => {
+  const key = `dayColors_${year}_${month}`;
+  const stored = localStorage.getItem(key);
+  return stored ? JSON.parse(stored) : [];
+};
+
+export const saveDayColorCustomizations = (year: number, month: number, customizations: DayColorCustomization[]) => {
+  const key = `dayColors_${year}_${month}`;
+  localStorage.setItem(key, JSON.stringify(customizations));
+};
+
+// Funzione per ottenere i colori di un giorno specifico
+export const getColorsForDate = (date: string, year: number, month: number): Record<string, string> => {
+  const customizations = getDayColorCustomizations(year, month);
+  const dayCustomization = customizations.find(c => c.date === date);
+  
+  if (dayCustomization) {
+    if (dayCustomization.useAlternativeColors) {
+      const customColors = dayCustomization.customColors || {};
+      return { ...coloriTurniAlternativi, ...customColors };
+    } else if (dayCustomization.customColors) {
+      return { ...coloriTurni, ...dayCustomization.customColors };
+    }
+  }
+  
+  return coloriTurni;
+};
+
 export const CELL_TYPE = "CELL";
 
 // Tipi di turni disponibili

@@ -4,6 +4,8 @@ export { EditableCell } from './EditableCell';
 export { HeaderToolbar } from './HeaderToolbar';
 export { LoadingScreen } from './LoadingScreen';
 export { default as ShiftSummaryBar } from './ShiftSummaryBar';
+export { default as ColorCustomizationModal } from './ColorCustomizationModal';
+export { default as ShiftColorCustomizationModal } from './ShiftColorCustomizationModal';
 
 // Export constants and utilities
 export * from './constants';

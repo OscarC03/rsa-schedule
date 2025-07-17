@@ -12,6 +12,8 @@ import {
   HeaderToolbar,
   LoadingScreen,
   ShiftSummaryBar,
+  ColorCustomizationModal,
+  ShiftColorCustomizationModal,
   CELL_HEIGHT,
   CELL_WIDTH,
   coloriTurni,
@@ -21,14 +23,16 @@ import {
   resources,
   loadMatrixFromLocalStorage,
   saveMatrixToLocalStorage,
-  convertDateToString
+  convertDateToString,
+  getDayColorCustomizations
 } from "@/Components";
 
 // Temporary PrintableTable component - inline for now
-const PrintableTable = ({ columns, rows, selectedMonth }: {
+const PrintableTable = ({ columns, rows, selectedMonth, selectedYear }: {
   columns: any[];
   rows: any[];
   selectedMonth: number;
+  selectedYear: number;
 }) => {
   // Calcola la larghezza della cella per la stampa in base al numero di colonne
   // in modo che tutto si adatti in una singola pagina
@@ -86,12 +90,10 @@ const PrintableTable = ({ columns, rows, selectedMonth }: {
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "8pt", tableLayout: "fixed" }}>
         <thead>
           <tr>
-            {columns.map((col, idx) => (
-              <th
+            {columns.map((col, idx) => (              <th
                 key={col.key}
                 style={{
-                  width: `${printCellWidth}px`,
-                  background: "#eef2ff",
+                  width: `${printCellWidth}px`,                  background: "#eef2ff",
                   color: "#3730a3",
                   fontWeight: 700,
                   padding: "2px",
@@ -129,13 +131,14 @@ const PrintableTable = ({ columns, rows, selectedMonth }: {
                       fontSize: "8pt",
                       color: "#18181b"
                     }}>{row[col.key]}</span>
-                  ) : (
-                    <div style={{
-                      backgroundColor: row[col.key]?.absence
-                        ? coloriTurni[row[col.key].absence]
-                        : row[col.key]?.shiftType
-                          ? coloriTurni[row[col.key].shiftType as ShiftType]
-                          : undefined,
+                  ) : (                    <div style={{
+                      backgroundColor: row[col.key]?.customColor || (
+                        row[col.key]?.absence
+                          ? coloriTurni[row[col.key].absence]
+                          : row[col.key]?.shiftType
+                            ? coloriTurni[row[col.key].shiftType as ShiftType]
+                            : undefined
+                      ),
                       height: "100%",
                       display: "flex",
                       alignItems: "center",
@@ -194,10 +197,18 @@ export default function Page() {
   const printTableRef = useRef<HTMLDivElement>(null);
   // Aggiungi stato per controllo visibilità della tabella di stampa
   const [isPrintingView, setIsPrintingView] = useState(false);  const printableTableRef = useRef<HTMLDivElement>(null);
-
   // Stato per mese/anno selezionato
   const [selectedMonth, setSelectedMonth] = useState<number>(initialMonth);
   const [selectedYear, setSelectedYear] = useState<number>(initialYear);
+  // Stati per il modal di personalizzazione colori
+  const [isColorModalOpen, setIsColorModalOpen] = useState(false);
+  const [selectedDateForColors, setSelectedDateForColors] = useState<string>('');
+  const [colorChangeCounter, setColorChangeCounter] = useState(0);
+
+  // Stati per il modal di personalizzazione colore turno
+  const [isShiftColorModalOpen, setIsShiftColorModalOpen] = useState(false);
+  const [selectedShiftForColors, setSelectedShiftForColors] = useState<ResourceShift | null>(null);
+  const [selectedResourceName, setSelectedResourceName] = useState<string>('');
 
   // Inizializza la matrice per il mese/anno selezionato
   const initSchedule = (
@@ -338,22 +349,21 @@ export default function Page() {
           ...resources.filter(r => r.type !== ResourceType.FULL_TIME)
         ];
         const resource = sortedResources[rowIdx];
-        
-        return (
-          <EditableCell
+          return (          <EditableCell
             rowIdx={rowIdx}
             colIdx={colIdx + 1}
             value={row[date]}
             resource={resource}
             currentDate={date}
+            selectedYear={selectedYear}
+            selectedMonth={selectedMonth}
             onCellDrop={handleCellDrop}
-            coloriTurni={coloriTurni}
             onShiftChange={handleShiftTypeChange}
-          />
-        );
+            onShiftColorChange={handleShiftColorChange}
+          />);
       }
     }))
-  ], [dateArray, coloriTurni]);
+  ], [dateArray, selectedYear, selectedMonth, colorChangeCounter]);
 
   // ROWS
   const rows = useMemo(() => {
@@ -420,7 +430,51 @@ export default function Page() {
     saveMatrixToLocalStorage(newMatrix, selectedYear, selectedMonth);
   }
 
-  // Funzione di stampa migliorata
+  const handleColorChange = () => {
+    setColorChangeCounter(prev => prev + 1);
+  };  const handleDateHeaderDoubleClick = (date: string) => {
+    setSelectedDateForColors(date);
+    setIsColorModalOpen(true);
+  };
+
+  // Funzione per controllare se un giorno ha personalizzazioni colori
+  const hasColorCustomizations = (date: string): boolean => {
+    const customizations = getDayColorCustomizations(selectedYear, selectedMonth);
+    return customizations.some(c => c.date === date);
+  };
+
+  // Gestione click su turno per personalizzazione colore
+  const handleShiftColorChange = (rowIdx: number, colIdx: number, currentCustomColor?: string) => {
+    const resource = resources[rowIdx];
+    const date = dateArray[colIdx - 1];
+    const shift = matrix[resource.id]?.[date];
+    
+    if (shift) {
+      setSelectedShiftForColors(shift);
+      setSelectedResourceName(`${resource.firstName} ${resource.lastName.charAt(0)}.`);
+      setIsShiftColorModalOpen(true);
+    }
+  };
+
+  // Salva il colore personalizzato del turno
+  const handleSaveShiftColor = (customColor?: string) => {
+    if (selectedShiftForColors) {
+      const resourceId = selectedShiftForColors.resourceId;
+      const date = selectedShiftForColors.date;
+      
+      const newShift: ResourceShift = {
+        ...selectedShiftForColors,
+        customColor: customColor
+      };
+
+      const newMatrix = { ...matrix };
+      newMatrix[resourceId] = { ...newMatrix[resourceId], [date]: newShift };
+      
+      setMatrix(newMatrix);
+      saveMatrixToLocalStorage(newMatrix, selectedYear, selectedMonth);
+      setColorChangeCounter(prev => prev + 1);
+    }
+  };
   const handlePrint = useReactToPrint({
     contentRef: printableTableRef,
     documentTitle: `Turni OSS - ${mesi.find(m => m.value === selectedMonth)?.label || 'Mensile'}`,
@@ -535,8 +589,7 @@ export default function Page() {
                   data={rows}
                   fixedHeaderContent={() => (
                     <tr>
-                      {columns.map((col, idx) => (
-                        <th
+                      {columns.map((col, idx) => (                        <th
                           key={col.key}
                           style={{
                             minWidth: CELL_WIDTH,
@@ -555,10 +608,27 @@ export default function Page() {
                             borderTopLeftRadius: idx === 0 ? 0 : 0,
                             borderTopRightRadius: idx === columns.length - 1 ? 0 : 0,
                             boxShadow: idx === 0 ? "2px 0 8px #e0e7ff" : undefined,
-                            letterSpacing: "0.01em"
-                          }}
+                            letterSpacing: "0.01em",
+                            cursor: idx > 0 ? "pointer" : "default"
+                          }}                          onDoubleClick={idx > 0 ? () => handleDateHeaderDoubleClick(col.key) : undefined}
+                          title={idx > 0 ? "Doppio click per personalizzare i colori del giorno" : undefined}
                         >
-                          {col.name}
+                          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+                            {col.name}
+                            {idx > 0 && hasColorCustomizations(col.key) && (
+                              <div style={{
+                                position: 'absolute',
+                                top: '4px',
+                                right: '4px',
+                                width: '8px',
+                                height: '8px',
+                                backgroundColor: '#f59e0b',
+                                borderRadius: '50%',
+                                border: '1px solid #fff',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                              }} />
+                            )}
+                          </div>
                         </th>
                       ))}
                     </tr>
@@ -636,14 +706,31 @@ export default function Page() {
         </div>
       </div>      {/* Tabella nascosta per la stampa */}
       <div style={{ display: "none" }}>
-        <div ref={printableTableRef}>
-          <PrintableTable 
+        <div ref={printableTableRef}>          <PrintableTable 
             columns={columns}
             rows={rows}
             selectedMonth={selectedMonth}
+            selectedYear={selectedYear}
           />
         </div>
-      </div>
+      </div>      {/* Modal per personalizzazione colori */}
+      <ColorCustomizationModal
+        isOpen={isColorModalOpen}
+        onClose={() => setIsColorModalOpen(false)}
+        selectedDate={selectedDateForColors}
+        selectedYear={selectedYear}
+        selectedMonth={selectedMonth}
+        onColorChange={handleColorChange}
+      />      {/* Modal per personalizzazione colore turno */}
+      <ShiftColorCustomizationModal
+        isOpen={isShiftColorModalOpen}
+        onClose={() => setIsShiftColorModalOpen(false)}
+        shift={selectedShiftForColors}
+        resourceName={selectedResourceName}
+        selectedYear={selectedYear}
+        selectedMonth={selectedMonth}
+        onColorChange={handleSaveShiftColor}
+      />
     </div>
   );
 }

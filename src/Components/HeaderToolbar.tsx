@@ -28,8 +28,7 @@ export const HeaderToolbar = ({ selectedMonth, onMonthChange, onPrint }: HeaderT
           textShadow: "0 1px 0 #fff, 0 2px 8px #e0e7ff",
           lineHeight: 1.2,
         }}
-      >
-        Turni OSS <span style={{
+      >        Turni OSS <span style={{
           fontWeight: 400,
           fontSize: "1rem",
           color: "#6366f1",
@@ -39,6 +38,17 @@ export const HeaderToolbar = ({ selectedMonth, onMonthChange, onPrint }: HeaderT
           marginLeft: 8,
           letterSpacing: "0.02em"
         }}>(Copertura fissa)</span>
+        <span style={{
+          fontSize: "0.75rem",
+          color: "#6b7280",
+          fontWeight: 400,
+          marginLeft: 12,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4
+        }}>
+          💡 Doppio click sulla data per personalizzare i colori
+        </span>
       </h2>
       <div className="flex items-center gap-2 flex-wrap justify-end">
         <label
