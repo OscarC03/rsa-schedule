@@ -11,6 +11,7 @@ import {
   EditableCell,
   HeaderToolbar,
   LoadingScreen,
+  ShiftSummaryBar,
   CELL_HEIGHT,
   CELL_WIDTH,
   coloriTurni,
@@ -464,11 +465,16 @@ export default function Page() {
         zIndex: 0,
         display: "flex",
         flexDirection: "column",
-      }}    >
-      <HeaderToolbar 
+      }}    >      <HeaderToolbar 
         selectedMonth={selectedMonth}
         onMonthChange={handleMonthChange}
         onPrint={handlePrint}
+      />
+
+      <ShiftSummaryBar 
+        matrix={matrix}
+        selectedMonth={selectedMonth}
+        mesi={mesi}
       />
 
       <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", flexDirection: "column" }}>
