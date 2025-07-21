@@ -7,6 +7,7 @@ import { TableVirtuoso } from "react-virtuoso";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { useReactToPrint } from "react-to-print";
+import apiService from "@/services/apiService";
 import {
   EditableCell,
   HeaderToolbar,
@@ -235,8 +236,7 @@ const PrintableTable = ({ columns, rows, selectedMonth, selectedYear }: {
   );
 };
 
-export default function Page() {
-  const [shifts, setShifts] = useState<ResourceShift[]>([]);
+export default function Page() {  const [shifts, setShifts] = useState<ResourceShift[]>([]);
   const shiftRef = useRef<ResourceShift[]>([]);
   const lastShiftRef = useRef<ResourceShift[]>([]);
   const [matrix, setMatrix] = useState<Record<string, Record<string, ResourceShift>>>({});
@@ -259,6 +259,11 @@ export default function Page() {
   const [selectedShiftForColors, setSelectedShiftForColors] = useState<ResourceShift | null>(null);
   const [selectedResourceName, setSelectedResourceName] = useState<string>('');
 
+  // Stati per gestione API e connettività
+  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   // Inizializza la matrice per il mese/anno selezionato
   const initSchedule = (
     resourceShifts: ResourceShift[],
@@ -285,36 +290,170 @@ export default function Page() {
     });
     
     setMatrix(mappaTurni);
-    if (persist) saveMatrixToLocalStorage(mappaTurni, year, month);    setIsLoading(false);
+    if (persist) {
+      saveMatrixToLocalStorage(mappaTurni, year, month);
+      saveToAPI(mappaTurni, year, month);
+    }
+    setIsLoading(false);
   }
 
-  useEffect(() => {
-    // All'avvio mostra Maggio 2025
-    const year = selectedYear;
-    const month = selectedMonth;
-    let loadedMatrix = loadMatrixFromLocalStorage(year, month);
-    if (loadedMatrix) {
-      // Ricostruisci dateArray da matrix
-      const allDates = Object.values(loadedMatrix)
-        .flatMap(obj => Object.keys(obj));
-      const dateSet = new Set(allDates);
-      const dateArray = Array.from(dateSet).sort();
-      setDateArray(dateArray);
-      setMatrix(loadedMatrix);
-      setIsLoading(false);
-    } else {
-      // Se non c'è, genera i turni per Maggio 2025
-      const startDate = new Date(year, month, 1, 0, 0, 0, 0);
-      const monthSchedule = generateShift(startDate, resources);
-      setShifts(monthSchedule);
-      shiftRef.current = monthSchedule;
-      initSchedule(monthSchedule, true, year, month);
+  // === FUNZIONI API ===
+  
+  // Carica i turni dalle API
+  const loadFromAPI = async (year: number, month: number): Promise<Record<string, Record<string, ResourceShift>> | null> => {
+    try {
+      setApiError(null);
+      const data = await apiService.loadShifts(year, month);
+      
+      if (data && data.shifts) {
+        setLastSyncTime(new Date());
+        
+        // Converte i dati API nel formato matrix interno
+        const matrix: Record<string, Record<string, ResourceShift>> = {};
+        
+        // Inizializza matrix per tutte le risorse
+        resources.forEach(resource => {
+          matrix[resource.id] = {};
+        });        // Popolea il matrix con i dati dalle API
+        Object.entries(data.shifts).forEach(([resourceId, shifts]) => {
+          Object.entries(shifts as Record<string, any>).forEach(([date, shiftData]) => {
+            matrix[resourceId][date] = {
+              resourceId,
+              date,
+              shiftCode: shiftData.shiftCode || '',
+              shiftType: shiftData.shiftType as ShiftType,
+              floor: shiftData.floor || 0,
+              cycleIndex: shiftData.cycleIndex || 0,
+              absence: shiftData.absence as AbsenceType,
+              absenceHours: shiftData.absenceHours || undefined,
+              customColor: shiftData.customColor || undefined
+            };
+          });
+        });
+        
+        return matrix;
+      }
+      
+      return null;
+    } catch (error: any) {
+      console.warn('Errore caricamento da API:', error.message);
+      setApiError(`Errore caricamento: ${error.message}`);
+      
+      // Se offline, prova con localStorage come fallback
+      if (!navigator.onLine) {
+        return loadMatrixFromLocalStorage(year, month);
+      }
+      
+      return null;
     }
+  };
+
+  // Salva i turni nelle API
+  const saveToAPI = async (matrix: Record<string, Record<string, ResourceShift>>, year: number, month: number): Promise<void> => {
+    try {
+      setApiError(null);
+      
+      // Converte il matrix interno nel formato API
+      const shiftsData: Record<string, Record<string, any>> = {};
+      
+      Object.entries(matrix).forEach(([resourceId, shifts]) => {
+        shiftsData[resourceId] = {};        Object.entries(shifts).forEach(([date, shift]) => {
+          shiftsData[resourceId][date] = {
+            shiftCode: shift.shiftCode,
+            shiftType: shift.shiftType,
+            floor: shift.floor,
+            cycleIndex: shift.cycleIndex,
+            absence: shift.absence,
+            absenceHours: shift.absenceHours,
+            customColor: shift.customColor
+          };
+        });
+      });
+      
+      await apiService.saveShifts(year, month, shiftsData);
+      setLastSyncTime(new Date());
+      setHasUnsavedChanges(false);
+      
+    } catch (error: any) {
+      console.warn('Errore salvataggio su API:', error.message);
+      setApiError(`Errore salvataggio: ${error.message}`);
+      setHasUnsavedChanges(true);
+      
+      // Comunque salva in localStorage come backup
+      saveMatrixToLocalStorage(matrix, year, month);
+    }
+  };
+
+  // Sincronizza le modifiche offline quando torna la connessione
+  const syncOfflineChanges = async (): Promise<void> => {
+    if (hasUnsavedChanges && navigator.onLine) {
+      try {
+        await saveToAPI(matrix, selectedYear, selectedMonth);
+      } catch (error) {
+        console.warn('Errore sincronizzazione offline:', error);
+      }
+    }
+  };
+
+  // Listener per stato online/offline
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      setApiError(null);
+      syncOfflineChanges();
+    };
+    
+    const handleOffline = () => {
+      setIsOnline(false);
+      setApiError('Connessione persa - modalità offline');
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [hasUnsavedChanges, matrix, selectedYear, selectedMonth]);
+  useEffect(() => {
+    // All'avvio prova a caricare da API, poi da localStorage, infine genera
+    const loadInitialData = async () => {
+      const year = selectedYear;
+      const month = selectedMonth;
+      
+      // Prima prova con API
+      let loadedMatrix = await loadFromAPI(year, month);
+      
+      if (!loadedMatrix) {
+        // Se API non disponibile, prova localStorage
+        loadedMatrix = loadMatrixFromLocalStorage(year, month);
+      }
+      
+      if (loadedMatrix) {
+        // Ricostruisci dateArray da matrix
+        const allDates = Object.values(loadedMatrix)
+          .flatMap(obj => Object.keys(obj));
+        const dateSet = new Set(allDates);
+        const dateArray = Array.from(dateSet).sort();
+        setDateArray(dateArray);
+        setMatrix(loadedMatrix);
+        setIsLoading(false);
+      } else {
+        // Se non c'è niente, genera i turni per il mese corrente
+        const startDate = new Date(year, month, 1, 0, 0, 0, 0);
+        const monthSchedule = generateShift(startDate, resources);
+        setShifts(monthSchedule);
+        shiftRef.current = monthSchedule;
+        initSchedule(monthSchedule, true, year, month);
+      }
+    };
+    
+    loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Solo all'avvio
-
   // Cambio mese
-  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleMonthChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedMonth = parseInt(e.target.value, 10);
     setSelectedMonth(selectedMonth);
     setIsTableLoading(true);
@@ -322,8 +461,14 @@ export default function Page() {
     const year = selectedYear;
     const month = selectedMonth;
 
-    // Prova a caricare la matrice del mese selezionato
-    let loadedMatrix = loadMatrixFromLocalStorage(year, selectedMonth);
+    // Prima prova a caricare da API
+    let loadedMatrix = await loadFromAPI(year, selectedMonth);
+    
+    if (!loadedMatrix) {
+      // Se API non disponibile, prova localStorage
+      loadedMatrix = loadMatrixFromLocalStorage(year, selectedMonth);
+    }
+    
     if (loadedMatrix) {
       // Ricostruisci dateArray da matrix
       const allDates = Object.values(loadedMatrix)
@@ -342,7 +487,14 @@ export default function Page() {
         prevMonth = 11;
         prevYear = year - 1;
       }
-      let prevMatrix = loadMatrixFromLocalStorage(prevYear, prevMonth);
+      
+      // Prima prova da API per il mese precedente
+      let prevMatrix = await loadFromAPI(prevYear, prevMonth);
+      if (!prevMatrix) {
+        // Se API non disponibile, prova localStorage
+        prevMatrix = loadMatrixFromLocalStorage(prevYear, prevMonth);
+      }
+      
       let prevShifts: ResourceShift[] = [];
       if (prevMatrix) {
         // Ricostruisci array di ResourceShift dal matrix
@@ -447,6 +599,9 @@ export default function Page() {
 
     setMatrix(newMatrix);
     saveMatrixToLocalStorage(newMatrix, selectedYear, selectedMonth);
+    // Save to API and mark as having unsaved changes
+    saveToAPI(newMatrix, selectedYear, selectedMonth);
+    setHasUnsavedChanges(true);
   }
 
   function handleShiftTypeChange(
@@ -477,6 +632,9 @@ export default function Page() {
     const newMatrix = { ...matrix };
     newMatrix[resource.id] = { ...newMatrix[resource.id], [date]: newShift };    setMatrix(newMatrix);
     saveMatrixToLocalStorage(newMatrix, selectedYear, selectedMonth);
+    // Save to API and mark as having unsaved changes
+    saveToAPI(newMatrix, selectedYear, selectedMonth);
+    setHasUnsavedChanges(true);
   }
 
   const handleColorChange = () => {
@@ -521,6 +679,9 @@ export default function Page() {
       
       setMatrix(newMatrix);
       saveMatrixToLocalStorage(newMatrix, selectedYear, selectedMonth);
+      // Save to API and mark as having unsaved changes
+      saveToAPI(newMatrix, selectedYear, selectedMonth);
+      setHasUnsavedChanges(true);
       setColorChangeCounter(prev => prev + 1);
     }
   };
@@ -617,6 +778,42 @@ export default function Page() {
         onMonthChange={handleMonthChange}
         onPrint={handlePrint}
       />
+
+      {/* Connection Status Bar */}
+      {(apiError || hasUnsavedChanges || !isOnline) && (
+        <div style={{
+          padding: "8px 16px",
+          backgroundColor: !isOnline ? "#fee2e2" : hasUnsavedChanges ? "#fef3c7" : "#fecaca",
+          borderBottom: "1px solid #e5e7eb",
+          color: !isOnline ? "#dc2626" : hasUnsavedChanges ? "#d97706" : "#dc2626",
+          fontSize: "0.875rem",
+          fontWeight: 500,
+          textAlign: "center",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "8px"
+        }}>
+          <div style={{
+            width: "8px",
+            height: "8px",
+            borderRadius: "50%",
+            backgroundColor: !isOnline ? "#dc2626" : hasUnsavedChanges ? "#d97706" : "#dc2626"
+          }} />
+          {!isOnline ? (
+            "📡 Modalità offline - Le modifiche saranno sincronizzate quando tornerà la connessione"
+          ) : hasUnsavedChanges ? (
+            "⚠️ Modifiche non salvate - Sincronizzazione in corso..."
+          ) : apiError ? (
+            `❌ ${apiError}`
+          ) : null}
+          {lastSyncTime && (
+            <span style={{ opacity: 0.7, fontSize: "0.8rem" }}>
+              | Ultimo sync: {lastSyncTime.toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+      )}
 
       <ShiftSummaryBar 
         matrix={matrix}
