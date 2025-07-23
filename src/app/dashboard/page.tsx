@@ -12,7 +12,8 @@ import {
   HeaderToolbar,
   LoadingScreen,
   ShiftSummaryBar,
-  ColorCustomizationModal,  ShiftColorCustomizationModal,
+  ColorCustomizationModal,
+  ShiftColorCustomizationModal,
   CELL_HEIGHT,
   CELL_WIDTH,
   coloriTurni,
@@ -20,12 +21,15 @@ import {
   initialMonth,
   initialYear,
   mesi,
-  resources,
+  resources, // Manteniamo temporaneamente per compatibilità
   loadMatrixFromLocalStorage,
   saveMatrixToLocalStorage,
   convertDateToString,
   getDayColorCustomizations,
-  getColorsForDate
+  getColorsForDate,
+  // Nuovi servizi database
+  resourcesService,
+  useResources
 } from "@/Components";
 
 // Enhanced PrintableTable component - optimized for A4 landscape printing with perfect readability
@@ -253,11 +257,16 @@ export default function Page() {
   const [isColorModalOpen, setIsColorModalOpen] = useState(false);
   const [selectedDateForColors, setSelectedDateForColors] = useState<string>('');
   const [colorChangeCounter, setColorChangeCounter] = useState(0);
-
   // Stati per il modal di personalizzazione colore turno
   const [isShiftColorModalOpen, setIsShiftColorModalOpen] = useState(false);
   const [selectedShiftForColors, setSelectedShiftForColors] = useState<ResourceShift | null>(null);
   const [selectedResourceName, setSelectedResourceName] = useState<string>('');
+
+  // Hook per risorse dal database
+  const { resources: dbResources, loading: resourcesLoading, error: resourcesError, refreshResources } = useResources();
+  
+  // Usa risorse dal database se disponibili, altrimenti fallback a quelle hardcoded
+  const currentResources = dbResources.length > 0 ? dbResources : resources;
 
   // Inizializza la matrice per il mese/anno selezionato
   const initSchedule = (
@@ -271,12 +280,10 @@ export default function Page() {
     // Estrai tutte le date distinte ordinate
     const dateSet = new Set(resourceShifts.map(t => t.date));
     const dateArray = Array.from(dateSet).sort();
-    setDateArray(dateArray);
-
-    // Costruisci una mappa per accedere velocemente ai turni [risorsa][data] => turno
+    setDateArray(dateArray);    // Costruisci una mappa per accedere velocemente ai turni [risorsa][data] => turno
     const mappaTurni: Record<string, Record<string, ResourceShift>> = {};
 
-    resources.forEach(resource => {
+    currentResources.forEach(resource => {
       mappaTurni[resource.id] = {};
     });
 
@@ -302,16 +309,36 @@ export default function Page() {
       setDateArray(dateArray);
       setMatrix(loadedMatrix);
       setIsLoading(false);
-    } else {
-      // Se non c'è, genera i turni per Maggio 2025
+    } else {      // Se non c'è, genera i turni per Maggio 2025
       const startDate = new Date(year, month, 1, 0, 0, 0, 0);
-      const monthSchedule = generateShift(startDate, resources);
+      const monthSchedule = generateShift(startDate, currentResources);
       setShifts(monthSchedule);
       shiftRef.current = monthSchedule;
       initSchedule(monthSchedule, true, year, month);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Solo all'avvio
+
+  // Effetto per reagire ai cambiamenti delle risorse dal database
+  useEffect(() => {
+    // Se le risorse sono state caricate dal database e non abbiamo ancora una matrice valida
+    if (dbResources.length > 0 && Object.keys(matrix).length === 0) {
+      console.log('🔄 Risorse caricate dal database, rigenerando pianificazione...');
+      const year = selectedYear;
+      const month = selectedMonth;
+      
+      // Verifica se esiste già una matrice salvata per questo mese
+      let loadedMatrix = loadMatrixFromLocalStorage(year, month);
+      if (!loadedMatrix) {
+        // Genera nuova pianificazione con le risorse dal database
+        const startDate = new Date(year, month, 1, 0, 0, 0, 0);
+        const monthSchedule = generateShift(startDate, dbResources);
+        setShifts(monthSchedule);
+        shiftRef.current = monthSchedule;
+        initSchedule(monthSchedule, true, year, month);
+      }
+    }
+  }, [dbResources, matrix, selectedYear, selectedMonth]); // Dipende dalle risorse database e dalla matrice
 
   // Cambio mese
   const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -346,16 +373,15 @@ export default function Page() {
       let prevShifts: ResourceShift[] = [];
       if (prevMatrix) {
         // Ricostruisci array di ResourceShift dal matrix
-        prevShifts = Object.values(prevMatrix).flatMap(obj => Object.values(obj));
-      } else {
+        prevShifts = Object.values(prevMatrix).flatMap(obj => Object.values(obj));      } else {
         // Se non c'è nemmeno il mese precedente, genera da zero
         const prevStartDate = new Date(prevYear, prevMonth, 1, 0, 0, 0, 0);
-        prevShifts = generateShift(prevStartDate, resources);
+        prevShifts = generateShift(prevStartDate, currentResources);
       }
       const lastShiftIndexByResource = getLastShiftIndexByResource(prevShifts);
       const monthSchedule = replicateScheduleForMonth(
         prevShifts,
-        resources,
+        currentResources,
         lastShiftIndexByResource,
         year,
         selectedMonth
@@ -390,12 +416,11 @@ export default function Page() {
     },    ...dateArray.map((date, colIdx) => ({
       key: date,
       name: convertDateToString(date),
-      width: CELL_WIDTH,
-      render: (row: any, rowIdx: number) => {
+      width: CELL_WIDTH,      render: (row: any, rowIdx: number) => {
         // Ordina le risorse: prima full-time, poi part-time (mantenendo l'ordine originale)
         const sortedResources = [
-          ...resources.filter(r => r.type === ResourceType.FULL_TIME),
-          ...resources.filter(r => r.type !== ResourceType.FULL_TIME)
+          ...currentResources.filter(r => r.type === ResourceType.FULL_TIME),
+          ...currentResources.filter(r => r.type !== ResourceType.FULL_TIME)
         ];
         const resource = sortedResources[rowIdx];
           return (          <EditableCell
@@ -413,13 +438,12 @@ export default function Page() {
       }
     }))
   ], [dateArray, selectedYear, selectedMonth, colorChangeCounter]);
-
   // ROWS
   const rows = useMemo(() => {
     // Ordina le risorse: prima full-time, poi part-time (mantenendo l'ordine originale)
     const sortedResources = [
-      ...resources.filter(r => r.type === ResourceType.FULL_TIME),
-      ...resources.filter(r => r.type !== ResourceType.FULL_TIME)
+      ...currentResources.filter(r => r.type === ResourceType.FULL_TIME),
+      ...currentResources.filter(r => r.type !== ResourceType.FULL_TIME)
     ];    return sortedResources.map((resource, rowIdx) => {
       const row: any = { resourceName: resource.firstName + ' ' + resource.lastName.charAt(0) + '.' };
       dateArray.forEach(date => {
@@ -427,12 +451,11 @@ export default function Page() {
       });
       return row;
     });
-  }, [resources, dateArray, matrix]);
-
+  }, [currentResources, dateArray, matrix]);
   function handleCellDrop(fromRow: number, fromCol: number, toRow: number, toCol: number) {
     if (fromCol === 0 || toCol === 0) return;
-    const fromResource = resources[fromRow];
-    const toResource = resources[toRow];
+    const fromResource = currentResources[fromRow];
+    const toResource = currentResources[toRow];
     const fromDate = dateArray[fromCol - 1];
     const toDate = dateArray[toCol - 1];
 
@@ -455,11 +478,10 @@ export default function Page() {
     shiftType: ShiftType,
     floor: number = 0,
     absence?: AbsenceType,
-    absenceHours?: number
-  ) {
+    absenceHours?: number  ) {
     if (colIdx === 0) return; // Skip resource name column
 
-    const resource = resources[rowIdx];
+    const resource = currentResources[rowIdx];
     const date = dateArray[colIdx - 1];
     const oldShift = matrix[resource.id][date];
 
@@ -491,10 +513,9 @@ export default function Page() {
     const customizations = getDayColorCustomizations(selectedYear, selectedMonth);
     return customizations.some(c => c.date === date);
   };
-
   // Gestione click su turno per personalizzazione colore
   const handleShiftColorChange = (rowIdx: number, colIdx: number, currentCustomColor?: string) => {
-    const resource = resources[rowIdx];
+    const resource = currentResources[rowIdx];
     const date = dateArray[colIdx - 1];
     const shift = matrix[resource.id]?.[date];
     
@@ -591,6 +612,17 @@ export default function Page() {
     return floor.toString();
   };
 
+  // Debug logging per monitorare lo stato delle risorse
+  useEffect(() => {
+    console.log('📊 Stato risorse:', {
+      dbResources: dbResources.length,
+      resourcesLoading,
+      resourcesError,
+      usingDatabase: dbResources.length > 0,
+      currentResources: currentResources.length
+    });
+  }, [dbResources, resourcesLoading, resourcesError, currentResources]);
+
   if (isLoading)
     return <LoadingScreen />;
 
@@ -616,6 +648,9 @@ export default function Page() {
         selectedMonth={selectedMonth}
         onMonthChange={handleMonthChange}
         onPrint={handlePrint}
+        resourcesLoading={resourcesLoading}
+        resourcesError={resourcesError}
+        usingDatabaseResources={dbResources.length > 0}
       />
 
       <ShiftSummaryBar 

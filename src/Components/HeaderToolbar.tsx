@@ -1,13 +1,39 @@
 import { mesi } from "./constants";
 import { handleExportShifts, handleImportShifts, handleResetShifts } from "./utils";
+import { runFullBackendTest } from "./testBackend";
+import { useState } from "react";
 
 interface HeaderToolbarProps {
   selectedMonth: number;
   onMonthChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   onPrint: () => void;
+  resourcesLoading?: boolean;
+  resourcesError?: string | null;
+  usingDatabaseResources?: boolean;
 }
 
-export const HeaderToolbar = ({ selectedMonth, onMonthChange, onPrint }: HeaderToolbarProps) => {
+export const HeaderToolbar = ({ 
+  selectedMonth, 
+  onMonthChange, 
+  onPrint, 
+  resourcesLoading = false, 
+  resourcesError = null, 
+  usingDatabaseResources = false 
+}: HeaderToolbarProps) => {
+  const [testingBackend, setTestingBackend] = useState(false);
+
+  const handleTestBackend = async () => {
+    setTestingBackend(true);
+    try {
+      const result = await runFullBackendTest();
+      alert(`Test Backend Completato!\n\n${result.recommendation}\n\nDettagli:\n- Backend online: ${result.connectivity.isOnline ? 'Sì' : 'No'}\n- Database connesso: ${result.database.connected ? 'Sì' : 'No'}\n- Risorse nel database: ${result.database.resourceCount || 0}\n- Latenza: ${result.connectivity.latency || 'N/A'}ms`);
+    } catch (error) {
+      alert(`Errore durante il test: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
+    } finally {
+      setTestingBackend(false);
+    }
+  };
+
   return (
     <div
       className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4"
@@ -203,7 +229,131 @@ export const HeaderToolbar = ({ selectedMonth, onMonthChange, onPrint }: HeaderT
           </svg>
           Resetta turni
         </button>
+        
+        {/* Pulsante test backend */}
+        <button
+          onClick={handleTestBackend}
+          disabled={testingBackend}
+          className="ml-2 flex items-center justify-center gap-1 px-3 py-2 rounded transition-all duration-200"
+          style={{
+            background: testingBackend ? "#9ca3af" : "#8b5cf6",
+            color: "white",
+            fontWeight: 600,
+            boxShadow: testingBackend ? "none" : "0 1px 4px rgba(139,92,246,0.15)",
+            border: "none",
+            cursor: testingBackend ? "not-allowed" : "pointer",
+            minHeight: 40,
+            fontSize: "0.85rem"
+          }}
+          onMouseOver={(e) => {
+            if (!testingBackend) {
+              e.currentTarget.style.background = "#7c3aed";
+              e.currentTarget.style.boxShadow = "0 2px 6px rgba(139,92,246,0.25)";
+            }
+          }}
+          onMouseOut={(e) => {
+            if (!testingBackend) {
+              e.currentTarget.style.background = "#8b5cf6";
+              e.currentTarget.style.boxShadow = "0 1px 4px rgba(139,92,246,0.15)";
+            }
+          }}
+          title="Testa connessione backend e database"
+        >
+          {testingBackend ? (
+            <>
+              <div style={{
+                width: 12,
+                height: 12,
+                border: "2px solid #fff",
+                borderTop: "2px solid transparent",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite"
+              }} />
+              Test...
+            </>
+          ) : (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+              </svg>
+              Test DB
+            </>
+          )}
+        </button>
+
+        {/* Indicatore stato risorse database */}
+        <div style={{
+          fontSize: "0.7rem",
+          padding: "4px 8px",
+          borderRadius: 4,
+          marginLeft: 8,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          background: resourcesLoading 
+            ? "#fef3c7" 
+            : resourcesError 
+              ? "#fecaca" 
+              : usingDatabaseResources 
+                ? "#d1fae5" 
+                : "#f3f4f6",
+          color: resourcesLoading 
+            ? "#92400e" 
+            : resourcesError 
+              ? "#991b1b" 
+              : usingDatabaseResources 
+                ? "#065f46" 
+                : "#6b7280",
+          border: `1px solid ${resourcesLoading 
+            ? "#fbbf24" 
+            : resourcesError 
+              ? "#f87171" 
+              : usingDatabaseResources 
+                ? "#10b981" 
+                : "#d1d5db"}`
+        }}>
+          {resourcesLoading && (
+            <>
+              <div style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "#f59e0b",
+                animation: "pulse 2s infinite"
+              }} />
+              Caricamento risorse...
+            </>
+          )}
+          {resourcesError && (
+            <>
+              ⚠️ Database offline - modalità locale
+            </>
+          )}
+          {!resourcesLoading && !resourcesError && usingDatabaseResources && (
+            <>
+              ✅ Database connesso
+            </>
+          )}
+          {!resourcesLoading && !resourcesError && !usingDatabaseResources && (
+            <>
+              📁 Modalità locale
+            </>
+          )}
+        </div>
       </div>
+      
+      {/* Stili CSS per animazioni */}
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+      `}</style>
     </div>
   );
 };

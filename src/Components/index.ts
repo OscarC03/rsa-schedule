@@ -10,4 +10,9 @@ export { default as ShiftColorCustomizationModal } from './ShiftColorCustomizati
 // Export constants and utilities
 export * from './constants';
 export * from './utils';
-export * from './resourcesData';
+export * from './resourcesData'; // Manteniamo temporaneamente per compatibilità
+
+// Export new API services
+export * from './apiService';
+export * from './ResourcesService';
+export * from './testBackend';
