@@ -16,13 +16,12 @@ import {
   CELL_HEIGHT,
   CELL_WIDTH,
   coloriTurni,
-  italianNames,
-  initialMonth,
+  italianNames,  initialMonth,
   initialYear,
   mesi,
   resources,
-  loadMatrixFromLocalStorage,
-  saveMatrixToLocalStorage,
+  loadMatrixFromDatabase,
+  saveMatrixToDatabase,
   convertDateToString,
   getDayColorCustomizations,
   getColorsForDate
@@ -283,38 +282,44 @@ export default function Page() {
     resourceShifts.forEach((value: ResourceShift, index: number, array: ResourceShift[]) => {
       mappaTurni[value.resourceId][value.date] = value;
     });
-    
-    setMatrix(mappaTurni);
-    if (persist) saveMatrixToLocalStorage(mappaTurni, year, month);    setIsLoading(false);
+      setMatrix(mappaTurni);
+    if (persist) {
+      saveMatrixToDatabase(mappaTurni, year, month);
+    }
+    setIsLoading(false);
   }
-
   useEffect(() => {
     // All'avvio mostra Maggio 2025
-    const year = selectedYear;
-    const month = selectedMonth;
-    let loadedMatrix = loadMatrixFromLocalStorage(year, month);
-    if (loadedMatrix) {
-      // Ricostruisci dateArray da matrix
-      const allDates = Object.values(loadedMatrix)
-        .flatMap(obj => Object.keys(obj));
-      const dateSet = new Set(allDates);
-      const dateArray = Array.from(dateSet).sort();
-      setDateArray(dateArray);
-      setMatrix(loadedMatrix);
-      setIsLoading(false);
-    } else {
-      // Se non c'è, genera i turni per Maggio 2025
-      const startDate = new Date(year, month, 1, 0, 0, 0, 0);
-      const monthSchedule = generateShift(startDate, resources);
-      setShifts(monthSchedule);
-      shiftRef.current = monthSchedule;
-      initSchedule(monthSchedule, true, year, month);
-    }
+    const loadInitialData = async () => {
+      const year = selectedYear;
+      const month = selectedMonth;
+
+      // Prova a caricare la matrice del mese selezionato dal database
+      const loadedMatrix = await loadMatrixFromDatabase(year, month);
+      if (loadedMatrix) {
+        // Ricostruisci dateArray da matrix
+        const allDates = Object.values(loadedMatrix)
+          .flatMap(obj => Object.keys(obj));
+        const dateSet = new Set(allDates);
+        const dateArray = Array.from(dateSet).sort();
+        setDateArray(dateArray);
+        setMatrix(loadedMatrix);
+        setIsLoading(false);
+      } else {
+        // Se non c'è, genera i turni per Maggio 2025
+        const startDate = new Date(year, month, 1, 0, 0, 0, 0);
+        const monthSchedule = generateShift(startDate, resources);
+        setShifts(monthSchedule);
+        shiftRef.current = monthSchedule;
+        initSchedule(monthSchedule, true, year, month);
+      }
+    };
+
+    loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Solo all'avvio
-
   // Cambio mese
-  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleMonthChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedMonth = parseInt(e.target.value, 10);
     setSelectedMonth(selectedMonth);
     setIsTableLoading(true);
@@ -322,8 +327,8 @@ export default function Page() {
     const year = selectedYear;
     const month = selectedMonth;
 
-    // Prova a caricare la matrice del mese selezionato
-    let loadedMatrix = loadMatrixFromLocalStorage(year, selectedMonth);
+    // Prova a caricare la matrice del mese selezionato dal database
+    const loadedMatrix = await loadMatrixFromDatabase(year, selectedMonth);
     if (loadedMatrix) {
       // Ricostruisci dateArray da matrix
       const allDates = Object.values(loadedMatrix)
@@ -342,7 +347,7 @@ export default function Page() {
         prevMonth = 11;
         prevYear = year - 1;
       }
-      let prevMatrix = loadMatrixFromLocalStorage(prevYear, prevMonth);
+      const prevMatrix = await loadMatrixFromDatabase(prevYear, prevMonth);
       let prevShifts: ResourceShift[] = [];
       if (prevMatrix) {
         // Ricostruisci array di ResourceShift dal matrix
@@ -442,11 +447,10 @@ export default function Page() {
     newMatrix[toResource.id] = { ...newMatrix[toResource.id] };
 
     const temp = newMatrix[fromResource.id][fromDate];
-    newMatrix[fromResource.id][fromDate] = newMatrix[toResource.id][toDate];
-    newMatrix[toResource.id][toDate] = temp;
+    newMatrix[fromResource.id][fromDate] = newMatrix[toResource.id][toDate];    newMatrix[toResource.id][toDate] = temp;
 
     setMatrix(newMatrix);
-    saveMatrixToLocalStorage(newMatrix, selectedYear, selectedMonth);
+    saveMatrixToDatabase(newMatrix, selectedYear, selectedMonth);
   }
 
   function handleShiftTypeChange(
@@ -471,12 +475,12 @@ export default function Page() {
       floor: (shiftType === ShiftType.Free || shiftType === ShiftType.MorningI || absence) ? 0 : floor,
       absence: absence,
       absenceHours: absence ? absenceHours : undefined
-    };
-
-    // Deep copy della riga della risorsa
+    };    // Deep copy della riga della risorsa
     const newMatrix = { ...matrix };
-    newMatrix[resource.id] = { ...newMatrix[resource.id], [date]: newShift };    setMatrix(newMatrix);
-    saveMatrixToLocalStorage(newMatrix, selectedYear, selectedMonth);
+    newMatrix[resource.id] = { ...newMatrix[resource.id], [date]: newShift };
+
+    setMatrix(newMatrix);
+    saveMatrixToDatabase(newMatrix, selectedYear, selectedMonth);
   }
 
   const handleColorChange = () => {
@@ -518,9 +522,8 @@ export default function Page() {
 
       const newMatrix = { ...matrix };
       newMatrix[resourceId] = { ...newMatrix[resourceId], [date]: newShift };
-      
-      setMatrix(newMatrix);
-      saveMatrixToLocalStorage(newMatrix, selectedYear, selectedMonth);
+        setMatrix(newMatrix);
+      saveMatrixToDatabase(newMatrix, selectedYear, selectedMonth);
       setColorChangeCounter(prev => prev + 1);
     }
   };

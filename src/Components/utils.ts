@@ -1,24 +1,45 @@
 import { ResourceShift } from "@/model/model";
+import { apiService } from "./apiService";
 
-// Utility per localStorage per mese/anno
+// Utility per salvare matrice nel database
+export async function saveMatrixToDatabase(matrix: Record<string, Record<string, ResourceShift>>, year: number, month: number) {
+  try {
+    const response = await apiService.saveMatrix(year, month, matrix);
+    if (!response.success) {
+      console.error('Errore salvataggio matrice:', response.error);
+    }
+  } catch (error) {
+    console.error('Errore salvataggio matrice:', error);
+  }
+}
+
+export async function loadMatrixFromDatabase(year: number, month: number): Promise<Record<string, Record<string, ResourceShift>> | null> {
+  try {
+    const response = await apiService.getMatrix(year, month);
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return null;
+  } catch (error) {
+    console.error('Errore caricamento matrice:', error);
+    return null;
+  }
+}
+
+// Funzioni legacy per compatibilità con localStorage (deprecate ma mantenute per backup)
 export function getMatrixStorageKey(year: number, month: number) {
   return `rsa-schedule-matrix-${year}-${month.toString().padStart(2, "0")}`;
 }
 
 export function saveMatrixToLocalStorage(matrix: Record<string, Record<string, ResourceShift>>, year: number, month: number) {
-  try {
-    localStorage.setItem(getMatrixStorageKey(year, month), JSON.stringify(matrix));
-  } catch {}
+  // Ora salva nel database invece che localStorage
+  saveMatrixToDatabase(matrix, year, month);
 }
 
 export function loadMatrixFromLocalStorage(year: number, month: number): Record<string, Record<string, ResourceShift>> | null {
-  try {
-    const data = localStorage.getItem(getMatrixStorageKey(year, month));
-    if (!data) return null;
-    return JSON.parse(data);
-  } catch {
-    return null;
-  }
+  // Per ora manteniamo sincrono ma questo diventerà asincrono
+  // Questa funzione verrà sostituita nelle chiamate
+  return null;
 }
 
 // Funzione per convertire data in stringa italiana

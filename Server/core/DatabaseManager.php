@@ -47,13 +47,14 @@ class DatabaseManager {
     public function getConnection(): PDO {
         return $this->connection;
     }
-    
-    public function query(string $sql, array $params = []): PDOStatement {
+      public function query(string $sql, array $params = []): PDOStatement {
         try {
             $stmt = $this->connection->prepare($sql);
             $stmt->execute($params);
             return $stmt;
         } catch (PDOException $e) {
+            // Log più dettagliato per debug
+            error_log("DatabaseManager Error: " . $e->getMessage() . " | SQL: " . $sql . " | Params: " . json_encode($params));
             $this->handleError("Query fallita: " . $sql, $e);
         }
     }
