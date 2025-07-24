@@ -5,17 +5,17 @@
  */
 
 // Database Configuration per Altervista.org
+// IMPORTANTE: Configurare questi parametri prima del deploy!
 define('DB_CONFIG', [
     'host' => 'localhost',
-    'database' => 'my_turnioperapia',
-    'username' => 'turnioperapia', // Sostituisci con il tuo username Altervista
-    'password' => '', // Sostituisci con la tua password database
+    'database' => 'my_turnioperapia', // Nome del database Altervista
+    'username' => 'turnioperapia',    // Username del database Altervista
+    'password' => '',                 // INSERIRE PASSWORD DATABASE ALTERVISTA!
     'charset' => 'utf8mb4',
     'options' => [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES => false,
-        PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
+        1002 => "SET NAMES utf8mb4" // PDO::MYSQL_ATTR_INIT_COMMAND
     ]
 ]);
 
@@ -27,8 +27,20 @@ define('API_CONFIG', [
     'memory_limit' => '128M'
 ]);
 
-// Error Reporting (Abilita temporaneamente per debug)
-define('DEBUG_MODE', true);
+// JWT Configuration
+define('JWT_CONFIG', [
+    'secret_key' => 'rsa_schedule_jwt_secret_key_2024_production_change_this_immediately_very_long_secure_key',
+    'algorithm' => 'HS256',
+    'expiry_hours' => 2,
+    'issuer' => 'RSA-Schedule-App',
+    'audience' => 'RSA-Users'
+]);
+
+// JWT Secret Key (for backward compatibility)
+define('JWT_SECRET', JWT_CONFIG['secret_key']);
+
+// Error Reporting (Disabilita per produzione)
+define('DEBUG_MODE', false);
 
 if (DEBUG_MODE) {
     error_reporting(E_ALL);

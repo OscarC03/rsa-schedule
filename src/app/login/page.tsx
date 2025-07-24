@@ -1,23 +1,62 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
+import { AuthService } from "@/Components/authService";
 
 export default function Login() {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const router = useRouter();
 
-  const handleLogin = (e: React.FormEvent) => {
+  // Verifica se l'utente è già autenticato
+  useEffect(() => {
+    const checkAuth = async () => {
+      const isAuth = await AuthService.isAuthenticated();
+      if (isAuth) {
+        router.push("/dashboard");
+      }
+    };
+    
+    checkAuth();
+  }, [router]);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // Per il momento, reindirizza direttamente senza controlli
-    setTimeout(() => {
-      router.push("/dashboard");
-    }, 500); // Piccolo delay per mostrare il loading state
+    setError("");
+
+    // Validazione base
+    if (!email || !password) {
+      setError("Email e password sono obbligatori");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      setError("Formato email non valido");
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const result = await AuthService.login(email, password);
+      
+      if (result.success) {
+        // Login riuscito
+        router.push("/dashboard");
+      } else {
+        setError(result.message || "Credenziali non valide");
+      }
+    } catch (error) {
+      console.error("Errore login:", error);
+      setError("Errore di connessione. Riprova più tardi.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -85,27 +124,39 @@ export default function Login() {
             Accedi al sistema di gestione turni
           </p>
         </div>
-        
-        <form onSubmit={handleLogin} className="space-y-6">
+          <form onSubmit={handleLogin} className="space-y-6">
+          {error && (
+            <div 
+              className="p-3 rounded-lg text-sm"
+              style={{
+                backgroundColor: "#fef2f2",
+                color: "#dc2626",
+                border: "1px solid #fecaca"
+              }}
+            >
+              {error}
+            </div>
+          )}
+          
           <div>
             <label 
-              htmlFor="username" 
+              htmlFor="email" 
               className="block text-sm font-medium mb-2"
               style={{
                 color: "#3730a3",
                 letterSpacing: "0.01em",
               }}
             >
-              Nome utente
+              Email
             </label>
             <input
-              id="username"
-              name="username"
-              type="text"
-              autoComplete="username"
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
               required
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-400 focus:outline-none transition-all duration-150"
               style={{
                 background: "#fff",
@@ -113,7 +164,7 @@ export default function Login() {
                 color: "#3730a3",
                 fontSize: "1.05rem",
               }}
-              placeholder="Inserisci il tuo username"
+              placeholder="Inserisci la tua email"
             />
           </div>
           
@@ -146,13 +197,14 @@ export default function Login() {
               placeholder="Inserisci la password"
             />
           </div>
-          
-          <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
             <div className="flex items-center">
               <input
                 id="remember-me"
                 name="remember-me"
                 type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
                 className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
               />
               <label 

@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { AuthService } from './authService';
 
 // Configurazione API - per Altervista.org tutto sarà sullo stesso dominio
 const API_BASE_URL = '/Server/api';
@@ -24,9 +25,8 @@ class ApiService {
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
   }
-
   /**
-   * Metodo generico per chiamate HTTP
+   * Metodo generico per chiamate HTTP con autenticazione
    */
   private async request<T>(
     endpoint: string, 
@@ -34,14 +34,25 @@ class ApiService {
   ): Promise<ApiResponse<T>> {
     try {
       const url = `${this.baseUrl}${endpoint}`;
+      const token = AuthService.getToken();
       
       const defaultOptions: RequestInit = {
         headers: {
           'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }),
         },
       };
 
       const response = await fetch(url, { ...defaultOptions, ...options });
+      
+      // Se ricevo 401, il token è scaduto
+      if (response.status === 401) {
+        AuthService.clearLocalData();
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+        throw new Error('Sessione scaduta');
+      }
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);

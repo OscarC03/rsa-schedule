@@ -45,6 +45,7 @@ import {
   getDayColorCustomizations,
   getColorsForDate
 } from "@/Components";
+import { ProtectedRoute } from "@/Components/ProtectedRoute";
 
 // Enhanced PrintableTable component - optimized for A4 landscape printing with perfect readability
 const PrintableTable = ({ columns, rows, selectedMonth, selectedYear }: {
@@ -833,29 +834,29 @@ export default function Page() {
     if (floor === 0) return "";
     return floor.toString();
   };
-
   if (isLoading)
     return <LoadingScreen />;
 
   return (
-    <div
-      className="p-0 sm:p-0 overflow-auto"
-      style={{
-        background: "linear-gradient(120deg, #f1f5f9 0%, #e0e7ff 100%)",
-        minHeight: "100vh",
-        minWidth: "100vw",
-        height: "100vh",
-        width: "100vw",
-        borderRadius: 0,
-        boxShadow: "none",
-        margin: 0,
-        position: "fixed",
-        top: 0,
-        left: 0,
-        zIndex: 0,
-        display: "flex",
-        flexDirection: "column",
-      }}    >      <HeaderToolbar 
+    <ProtectedRoute>
+      <div
+        className="p-0 sm:p-0 overflow-auto"
+        style={{
+          background: "linear-gradient(120deg, #f1f5f9 0%, #e0e7ff 100%)",
+          minHeight: "100vh",
+          minWidth: "100vw",
+          height: "100vh",
+          width: "100vw",
+          borderRadius: 0,
+          boxShadow: "none",
+          margin: 0,
+          position: "fixed",
+          top: 0,
+          left: 0,
+          zIndex: 0,
+          display: "flex",
+          flexDirection: "column",
+        }}    ><HeaderToolbar 
         selectedMonth={selectedMonth}
         onMonthChange={handleMonthChange}
         onPrint={handlePrint}
@@ -1040,8 +1041,8 @@ export default function Page() {
         resourceName={selectedResourceName}
         selectedYear={selectedYear}
         selectedMonth={selectedMonth}
-        onColorChange={handleSaveShiftColor}
-      />
+        onColorChange={handleSaveShiftColor}      />
     </div>
+    </ProtectedRoute>
   );
 }

@@ -3,6 +3,7 @@ export { EditableCell } from './EditableCell';
 // export { PrintableTable } from './PrintableTable'; // Temporarily commented out
 export { HeaderToolbar } from './HeaderToolbar';
 export { LoadingScreen } from './LoadingScreen';
+export { ProtectedRoute } from './ProtectedRoute';
 export { default as ShiftSummaryBar } from './ShiftSummaryBar';
 export { default as ColorCustomizationModal } from './ColorCustomizationModal';
 export { default as ShiftColorCustomizationModal } from './ShiftColorCustomizationModal';
@@ -11,3 +12,4 @@ export { default as ShiftColorCustomizationModal } from './ShiftColorCustomizati
 export * from './constants';
 export * from './utils';
 export * from './resourcesData';
+export { AuthService } from './authService';
