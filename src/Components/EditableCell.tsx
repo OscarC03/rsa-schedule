@@ -1,10 +1,10 @@
 "use client";
 
-import { memo, useRef, useState } from "react";
+import { memo, useRef, useState, useEffect } from "react";
 import { useDrag, useDrop } from "react-dnd";
 import ReactDOM from "react-dom";
 import { ResourceShift, ShiftType, AbsenceType, Resource, Days, ResourceType } from "@/model/model";
-import { CELL_TYPE, CELL_HEIGHT, CELL_WIDTH, shiftTypes, absenceTypes, italianNames, getColorsForDate } from "./constants";
+import { CELL_TYPE, CELL_HEIGHT, CELL_WIDTH, shiftTypes, absenceTypes, italianNames, getColorsForDate as getColorsFromConstants } from "./constants";
 
 interface EditableCellProps {
   rowIdx: number;
@@ -17,6 +17,7 @@ interface EditableCellProps {
   onCellDrop: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void;
   onShiftChange: (rowIdx: number, colIdx: number, shiftType: ShiftType, floor: number, absence?: AbsenceType, absenceHours?: number) => void;
   onShiftColorChange?: (rowIdx: number, colIdx: number, customColor?: string) => void;
+  getColorsForDate?: (date: string) => Record<string, string>;
 }
 
 export const EditableCell = memo(function EditableCell({
@@ -29,35 +30,66 @@ export const EditableCell = memo(function EditableCell({
   selectedMonth,
   onCellDrop,
   onShiftChange,
-  onShiftColorChange
-}: EditableCellProps) {
-  // Get colors for this specific date
-  const coloriTurni = getColorsForDate(currentDate, selectedYear, selectedMonth);
-  const [{ isDragging }, drag] = useDrag({
+  onShiftColorChange,
+  getColorsForDate
+}: EditableCellProps) {// Get colors for this specific date - usa la prop se fornita, altrimenti usa quella da constants
+  const coloriTurni = getColorsForDate 
+    ? getColorsForDate(currentDate) 
+    : getColorsFromConstants(currentDate, selectedYear, selectedMonth);  const [{ isDragging }, drag] = useDrag(() => ({
     type: CELL_TYPE,
-    item: () => ({ rowIdx, colIdx, value }), // Using a function to get current value when dragging starts
+    item: () => {
+      console.log('🚀 Starting drag for:', { rowIdx, colIdx, resourceId: resource.id, date: currentDate });
+      return { 
+        rowIdx, 
+        colIdx, 
+        value: value,
+        resourceId: resource.id,
+        date: currentDate
+      };
+    },
     collect: (monitor) => ({
       isDragging: monitor.isDragging()
-    })
-  });
+    }),
+    end: (item, monitor) => {
+      console.log('🏁 Drag ended:', { didDrop: monitor.didDrop(), item });
+      if (!monitor.didDrop()) {
+        console.log('❌ Drag was cancelled');
+      }
+    }
+  }), [rowIdx, colIdx, value, resource.id, currentDate]);
 
-  const [, drop] = useDrop({
+  const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: CELL_TYPE,
     drop: (item: any) => {
+      console.log('🎯 Drop triggered:', { 
+        from: { row: item.rowIdx, col: item.colIdx }, 
+        to: { row: rowIdx, col: colIdx } 
+      });
       if (item.rowIdx !== rowIdx || item.colIdx !== colIdx) {
         onCellDrop(item.rowIdx, item.colIdx, rowIdx, colIdx);
       }
-    }
-  });
+    },
+    collect: (monitor) => ({
+      isOver: monitor.isOver(),
+      canDrop: monitor.canDrop()
+    })
+  }), [rowIdx, colIdx, onCellDrop]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
-  const ref = useRef<HTMLDivElement>(null);
-
-  // Add state for selected shift type and floor
+  const ref = useRef<HTMLDivElement>(null);  // Add state for selected shift type and floor
   const [selectedShift, setSelectedShift] = useState<ShiftType>(value?.shiftType || ShiftType.Free);
-  const [selectedFloor, setSelectedFloor] = useState<number>(value?.floor || 0);  const [selectedAbsence, setSelectedAbsence] = useState<AbsenceType | undefined>(value?.absence);
+  const [selectedFloor, setSelectedFloor] = useState<number>(value?.floor || 0);
+  const [selectedAbsence, setSelectedAbsence] = useState<AbsenceType | undefined>(value?.absence);
   const [absenceHours, setAbsenceHours] = useState<number | undefined>(value?.absenceHours);
+  
+  // Usa un singolo useEffect che si attiva quando cambia l'intero oggetto value
+  useEffect(() => {
+    setSelectedShift(value?.shiftType || ShiftType.Free);
+    setSelectedFloor(value?.floor || 0);
+    setSelectedAbsence(value?.absence);
+    setAbsenceHours(value?.absenceHours);
+  }, [value]);
 
   // Helper function to convert JavaScript day of week to our Days enum
   const getJSDayOfWeek = (date: Date): Days => {
@@ -131,14 +163,14 @@ export const EditableCell = memo(function EditableCell({
   const setRef = (node: HTMLDivElement | null) => {
     ref.current = node;
     drag(drop(node));
-  };
-  // Apri il pannello laterale a destra invece che posizionare il menu vicino alla cella
+  };  // Apri il pannello laterale a destra invece che posizionare il menu vicino alla cella
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setSelectedShift(value?.shiftType || ShiftType.Free);
     setSelectedFloor(value?.floor || 0);
     setSelectedAbsence(value?.absence);
+    setAbsenceHours(value?.absenceHours);
     setIsEditing(true);
   };
   // Handle right click for color customization
@@ -205,13 +237,12 @@ export const EditableCell = memo(function EditableCell({
     }
     return undefined;
   };
-
   return (
     <>      <div
         ref={setRef}
         style={{
           opacity: isDragging ? 0.5 : 1,
-          backgroundColor: getBackgroundColor(),
+          backgroundColor: isOver && canDrop ? '#e0f2fe' : getBackgroundColor(),
           cursor: "move",
           minWidth: CELL_WIDTH,
           maxWidth: CELL_WIDTH,
@@ -229,9 +260,15 @@ export const EditableCell = memo(function EditableCell({
           fontWeight: 600,
           userSelect: "none",
           color: value && value.shiftType === "Free" ? "#6b7280" : "#18181b",
-          border: value?.customColor ? "2px solid #6366f1" : "1px solid #e5e7eb",
+          border: isOver && canDrop 
+            ? "2px solid #0ea5e9" 
+            : value?.customColor 
+              ? "2px solid #6366f1" 
+              : "1px solid #e5e7eb",
           textAlign: "center",
-          position: "relative"
+          position: "relative",
+          transform: isDragging ? 'rotate(5deg)' : 'none',
+          transition: 'all 0.2s ease'
         }}        title={`${value && value.shiftType ? value.shiftType.toString() : ""} • Click destro: personalizza colore • Doppio click: modifica turno`}
         onContextMenu={handleRightClick}
         onDoubleClick={handleDoubleClick}

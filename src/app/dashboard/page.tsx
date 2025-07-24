@@ -373,6 +373,11 @@ export default function Page() {
 
   // Drag type
   const CELL_TYPE = "CELL";
+  // Ordina le risorse una volta sola e riutilizza
+  const sortedResources = useMemo(() => [
+    ...resources.filter(r => r.type === ResourceType.FULL_TIME),
+    ...resources.filter(r => r.type !== ResourceType.FULL_TIME)
+  ], [resources]);
 
   // COLUMNS - Update to use the EditableCell component
   const columns = useMemo(() => [
@@ -395,15 +400,9 @@ export default function Page() {
     },    ...dateArray.map((date, colIdx) => ({
       key: date,
       name: convertDateToString(date),
-      width: CELL_WIDTH,
-      render: (row: any, rowIdx: number) => {
-        // Ordina le risorse: prima full-time, poi part-time (mantenendo l'ordine originale)
-        const sortedResources = [
-          ...resources.filter(r => r.type === ResourceType.FULL_TIME),
-          ...resources.filter(r => r.type !== ResourceType.FULL_TIME)
-        ];
+      width: CELL_WIDTH,      render: (row: any, rowIdx: number) => {
         const resource = sortedResources[rowIdx];
-          return (          <EditableCell
+        return (          <EditableCell
             rowIdx={rowIdx}
             colIdx={colIdx + 1}
             value={row[date]}
@@ -417,43 +416,94 @@ export default function Page() {
           />);
       }
     }))
-  ], [dateArray, selectedYear, selectedMonth, colorChangeCounter]);
-
+  ], [dateArray, selectedYear, selectedMonth, colorChangeCounter, matrix]);
   // ROWS
   const rows = useMemo(() => {
-    // Ordina le risorse: prima full-time, poi part-time (mantenendo l'ordine originale)
-    const sortedResources = [
-      ...resources.filter(r => r.type === ResourceType.FULL_TIME),
-      ...resources.filter(r => r.type !== ResourceType.FULL_TIME)
-    ];    return sortedResources.map((resource, rowIdx) => {
+    return sortedResources.map((resource, rowIdx) => {
       const row: any = { resourceName: resource.firstName + ' ' + resource.lastName.charAt(0) + '.' };
       dateArray.forEach(date => {
         row[date] = matrix[resource.id]?.[date];
       });
       return row;
     });
-  }, [resources, dateArray, matrix]);
-
-  function handleCellDrop(fromRow: number, fromCol: number, toRow: number, toCol: number) {
+  }, [sortedResources, dateArray, matrix]);  function handleCellDrop(fromRow: number, fromCol: number, toRow: number, toCol: number) {
+    console.log('🔄 Drag & Drop:', { fromRow, fromCol, toRow, toCol });
+    
     if (fromCol === 0 || toCol === 0) return;
-    const fromResource = resources[fromRow];
-    const toResource = resources[toRow];
+    
+    // Ensure we have valid indices
+    if (fromRow < 0 || fromRow >= sortedResources.length || 
+        toRow < 0 || toRow >= sortedResources.length ||
+        fromCol - 1 < 0 || fromCol - 1 >= dateArray.length ||
+        toCol - 1 < 0 || toCol - 1 >= dateArray.length) {
+      console.warn('Invalid drag & drop indices:', { fromRow, fromCol, toRow, toCol });
+      return;
+    }
+    
+    const fromResource = sortedResources[fromRow];
+    const toResource = sortedResources[toRow];
     const fromDate = dateArray[fromCol - 1];
     const toDate = dateArray[toCol - 1];
 
-    // Deep copy solo delle righe coinvolte
+    console.log('📋 Resources & Dates:', { 
+      fromResource: fromResource?.firstName, 
+      toResource: toResource?.firstName, 
+      fromDate, 
+      toDate 
+    });
+
+    // Verify resources exist
+    if (!fromResource || !toResource) {
+      console.warn('Resources not found:', { fromResource, toResource });
+      return;
+    }
+
+    // Get current matrix values
+    const fromValue = matrix[fromResource.id]?.[fromDate];
+    const toValue = matrix[toResource.id]?.[toDate];
+
+    console.log('📊 Current values:', { 
+      fromValue: fromValue?.shiftType, 
+      toValue: toValue?.shiftType 
+    });
+
+    // If values are the same, no need to swap
+    if (fromValue === toValue) {
+      console.log('⚡ Values are the same, skipping swap');
+      return;
+    }
+
+    // Create new matrix with deep copy of affected resource rows
     const newMatrix = { ...matrix };
+    
+    // Ensure resource entries exist
+    if (!newMatrix[fromResource.id]) {
+      newMatrix[fromResource.id] = {};
+    }
+    if (!newMatrix[toResource.id]) {
+      newMatrix[toResource.id] = {};
+    }
+    
+    // Deep copy the affected resource rows
     newMatrix[fromResource.id] = { ...newMatrix[fromResource.id] };
     newMatrix[toResource.id] = { ...newMatrix[toResource.id] };
 
-    const temp = newMatrix[fromResource.id][fromDate];
-    newMatrix[fromResource.id][fromDate] = newMatrix[toResource.id][toDate];    newMatrix[toResource.id][toDate] = temp;
+    // Perform the swap
+    newMatrix[fromResource.id][fromDate] = toValue;
+    newMatrix[toResource.id][toDate] = fromValue;
 
+    console.log('✅ Swap completed:', { 
+      fromNew: newMatrix[fromResource.id][fromDate]?.shiftType, 
+      toNew: newMatrix[toResource.id][toDate]?.shiftType 
+    });
+
+    // Update state and save to database
     setMatrix(newMatrix);
     saveMatrixToDatabase(newMatrix, selectedYear, selectedMonth);
-  }
-
-  function handleShiftTypeChange(
+    
+    // Force re-render of components
+    setColorChangeCounter(prev => prev + 1);
+  }  function handleShiftTypeChange(
     rowIdx: number,
     colIdx: number,
     shiftType: ShiftType,
@@ -463,11 +513,32 @@ export default function Page() {
   ) {
     if (colIdx === 0) return; // Skip resource name column
 
-    const resource = resources[rowIdx];
+    // Usa le risorse ordinate (stesso ordine del rendering)
+    const sortedResources = [
+      ...resources.filter(r => r.type === ResourceType.FULL_TIME),
+      ...resources.filter(r => r.type !== ResourceType.FULL_TIME)
+    ];
+    
+    // Validate indices
+    if (rowIdx < 0 || rowIdx >= sortedResources.length || colIdx - 1 < 0 || colIdx - 1 >= dateArray.length) {
+      console.warn('Invalid shift change indices:', { rowIdx, colIdx });
+      return;
+    }
+    
+    const resource = sortedResources[rowIdx];
     const date = dateArray[colIdx - 1];
-    const oldShift = matrix[resource.id][date];
+    
+    if (!resource || !date) {
+      console.warn('Resource or date not found:', { resource, date });
+      return;
+    }
+    
+    const oldShift = matrix[resource.id]?.[date];
 
-    if (!oldShift) return;
+    if (!oldShift) {
+      console.warn('Old shift not found:', { resourceId: resource.id, date });
+      return;
+    }
 
     const newShift: ResourceShift = {
       ...oldShift,
@@ -475,12 +546,23 @@ export default function Page() {
       floor: (shiftType === ShiftType.Free || shiftType === ShiftType.MorningI || absence) ? 0 : floor,
       absence: absence,
       absenceHours: absence ? absenceHours : undefined
-    };    // Deep copy della riga della risorsa
+    };
+
+    // Deep copy della riga della risorsa
     const newMatrix = { ...matrix };
+    
+    // Ensure resource entry exists
+    if (!newMatrix[resource.id]) {
+      newMatrix[resource.id] = {};
+    }
+    
     newMatrix[resource.id] = { ...newMatrix[resource.id], [date]: newShift };
 
     setMatrix(newMatrix);
     saveMatrixToDatabase(newMatrix, selectedYear, selectedMonth);
+    
+    // Forza re-render dei componenti
+    setColorChangeCounter(prev => prev + 1);
   }
 
   const handleColorChange = () => {
@@ -495,10 +577,15 @@ export default function Page() {
     const customizations = getDayColorCustomizations(selectedYear, selectedMonth);
     return customizations.some(c => c.date === date);
   };
-
   // Gestione click su turno per personalizzazione colore
   const handleShiftColorChange = (rowIdx: number, colIdx: number, currentCustomColor?: string) => {
-    const resource = resources[rowIdx];
+    // Usa le risorse ordinate (stesso ordine del rendering)
+    const sortedResources = [
+      ...resources.filter(r => r.type === ResourceType.FULL_TIME),
+      ...resources.filter(r => r.type !== ResourceType.FULL_TIME)
+    ];
+    
+    const resource = sortedResources[rowIdx];
     const date = dateArray[colIdx - 1];
     const shift = matrix[resource.id]?.[date];
     
