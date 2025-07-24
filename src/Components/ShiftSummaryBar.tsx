@@ -153,8 +153,7 @@ const ShiftSummaryBar: React.FC<ShiftSummaryBarProps> = ({
           flexWrap: "wrap"
         }}>
           <div style={{
-            backgroundColor: "#3b82f6",
-            color: "white",
+            color: "rgb(55, 65, 81)",
             padding: "6px 12px",
             borderRadius: "6px",
             fontSize: isMobile ? "12px" : "14px",
@@ -164,8 +163,7 @@ const ShiftSummaryBar: React.FC<ShiftSummaryBarProps> = ({
           </div>
           {stats.floorsWithShifts > 0 && (
             <div style={{
-              backgroundColor: "#10b981",
-              color: "white",
+              color: "rgb(55, 65, 81)",
               padding: "6px 12px",
               borderRadius: "6px",
               fontSize: isMobile ? "12px" : "14px",

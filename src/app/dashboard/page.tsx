@@ -47,19 +47,52 @@ import {
 } from "@/Components";
 import { ProtectedRoute } from "@/Components/ProtectedRoute";
 
-// Enhanced PrintableTable component - optimized for A4 landscape printing with perfect readability
+// Enhanced PrintableTable component - completely rewritten for optimal A4 landscape printing
 const PrintableTable = ({ columns, rows, selectedMonth, selectedYear }: {
   columns: any[];
   rows: any[];
   selectedMonth: number;
   selectedYear: number;
-}) => {  // Calcola dimensioni ottimali per A4 landscape con leggibilità perfetta
-  // A4 landscape: 297mm x 210mm, SENZA margini = area utile 297mm x 210mm
-  const resourceColumnWidth = "32mm"; // Colonna risorsa ridotta per dare più spazio ai giorni
+}) => {
+  // A4 landscape: 297mm x 210mm with 10mm margins = area utile 277mm x 190mm
+  const resourceColumnWidth = "16mm"; // Colonna risorsa ridotta
   const dateColumnsCount = columns.length - 1;
-  const remainingWidth = 297 - 32; // 265mm per le colonne date
+  const remainingWidth = 240; // 249mm per le colonne date
   const dateColumnWidth = `${Math.floor(remainingWidth / dateColumnsCount)}mm`;
   
+  // Abbreviazioni per turni e assenze - massimo 3 caratteri
+  const abbreviations: Record<string, string> = {
+    // Turni
+    Morning: 'M',
+    MorningI: 'MI',
+    Afternoon: 'P',
+    Split: 'S',
+    Night: 'N',
+    Free: 'R',
+    // Assenze
+    Ferie: 'F',
+    Permesso: 'PE',
+    Malattia: 'MA',
+    RiposoCompensativo: 'RC',
+    Riposo: 'R',
+    RiposoCambioDivisa: 'RD'
+  };
+
+  // Legenda per la stampa
+  const legend = [
+    { abbr: 'M', full: 'Mattina', color: coloriTurni.Morning },
+    { abbr: 'MI', full: 'Mattina Inf.', color: coloriTurni.MorningI },
+    { abbr: 'P', full: 'Pomeriggio', color: coloriTurni.Afternoon },
+    { abbr: 'S', full: 'Spezzato', color: coloriTurni.Split },
+    { abbr: 'N', full: 'Notte', color: coloriTurni.Night },
+    { abbr: 'R', full: 'Riposo', color: coloriTurni.Free },
+    { abbr: 'F', full: 'Ferie', color: coloriTurni.Ferie },
+    { abbr: 'PE', full: 'Permesso', color: coloriTurni.Permesso },
+    { abbr: 'MA', full: 'Malattia', color: coloriTurni.Malattia },
+    { abbr: 'RC', full: 'Riposo Comp.', color: coloriTurni.RiposoCompensativo },
+    { abbr: 'RD', full: 'Riposo C.D.', color: coloriTurni.RiposoCambioDivisa }
+  ];
+
   // Funzione per estrarre solo il giorno dalla data
   const extractOnlyDay = (date: string): string => {
     const currDate = new Date(date);
@@ -72,7 +105,8 @@ const PrintableTable = ({ columns, rows, selectedMonth, selectedYear }: {
     if (floor === 0) return "";
     return floor.toString();
   };
-  // Genera il display del turno con traduzioni italiane
+
+  // Genera il display del turno con abbreviazioni
   const generateShiftDisplay = (shift: any) => {
     if (!shift) return "";
     
@@ -80,21 +114,21 @@ const PrintableTable = ({ columns, rows, selectedMonth, selectedYear }: {
       // Se assenza parziale (<8h), mostra turno + assenza
       if (typeof shift.absenceHours === "number" && shift.absenceHours > 0 && shift.absenceHours < 8) {
         const shiftPart = shift.shiftType && shift.floor > 0 
-          ? `${italianNames[shift.shiftType] || shift.shiftType}${getFloorText(shift.floor)}`
-          : italianNames[shift.shiftType] || shift.shiftType || "";
-        const absencePart = `${italianNames[shift.absence] || shift.absence}(${shift.absenceHours}h)`;
-        return shiftPart ? `${shiftPart} + ${absencePart}` : absencePart;
+          ? `${abbreviations[shift.shiftType] || shift.shiftType}${getFloorText(shift.floor)}`
+          : abbreviations[shift.shiftType] || shift.shiftType || "";
+        const absencePart = `${abbreviations[shift.absence] || shift.absence}${shift.absenceHours}h`;
+        return shiftPart ? `${shiftPart}+${absencePart}` : absencePart;
       } else {
         // Assenza totale
         const absenceHours = typeof shift.absenceHours === "number" && shift.absenceHours > 0 
-          ? `(${shift.absenceHours}h)` : "";
-        return `${italianNames[shift.absence] || shift.absence}${absenceHours}`;
+          ? `${shift.absenceHours}h` : "";
+        return `${abbreviations[shift.absence] || shift.absence}${absenceHours}`;
       }
     } else if (shift.shiftType) {
       // Solo turno
       return shift.floor > 0 
-        ? `${italianNames[shift.shiftType] || shift.shiftType}${getFloorText(shift.floor)}`
-        : italianNames[shift.shiftType] || shift.shiftType;
+        ? `${abbreviations[shift.shiftType] || shift.shiftType}${getFloorText(shift.floor)}`
+        : abbreviations[shift.shiftType] || shift.shiftType;
     }
     return "";
   };
@@ -107,7 +141,8 @@ const PrintableTable = ({ columns, rows, selectedMonth, selectedYear }: {
     if (shift.customColor) {
       return { 
         backgroundColor: shift.customColor, 
-        color: shift.shiftType === 'Free' ? '#6b7280' : '#000'
+        color: '#000',
+        fontWeight: 'bold'
       };
     }
     
@@ -118,77 +153,94 @@ const PrintableTable = ({ columns, rows, selectedMonth, selectedYear }: {
     if (shift.absence) {
       return { 
         backgroundColor: dateColors[shift.absence] || coloriTurni[shift.absence] || '#e5e7eb', 
-        color: '#000'
+        color: '#000',
+        fontWeight: 'bold'
       };
     } else if (shift.shiftType) {
       return { 
         backgroundColor: dateColors[shift.shiftType] || coloriTurni[shift.shiftType] || '#e5e7eb', 
-        color: shift.shiftType === 'Free' ? '#6b7280' : '#000'
+        color: '#000',
+        fontWeight: 'bold'
       };
-    }
-    
+    }    
     return { backgroundColor: 'transparent', color: '#000' };
-  };  return (
+  };
+
+  return (
     <div style={{ 
       width: "100%",
       height: "100%",
-      margin: "0",
       padding: "0",
       fontFamily: "Arial, sans-serif",
-      fontSize: "10pt", // Leggermente aumentato per migliore leggibilità
-      lineHeight: "1.1", // Migliorato per leggibilità
+      fontSize: "9pt",
+      lineHeight: "1",
       color: "#000",
       backgroundColor: "#fff",
       boxSizing: "border-box"
     }}>
-      {/* Header compatto - solo essenziale */}
+      {/* Header con data */}
       <div style={{ 
         textAlign: "center", 
-        marginBottom: "3mm", // Leggermente aumentato
-        paddingBottom: "1.5mm"
+        marginBottom: "4mm",
+        paddingBottom: "2mm",
+        borderBottom: "1pt solid #000"
       }}>
         <h1 style={{ 
-          fontSize: "14pt", // Aumentato per migliore leggibilità
+          fontSize: "16pt",
           fontWeight: "bold", 
           color: "#000",
-          margin: "0 0 1.5mm 0"
+          margin: "0 0 2mm 0"
         }}>
           Turni OSS - {mesi.find(m => m.value === selectedMonth)?.label || 'Mensile'} {selectedYear}
         </h1>
+        <div style={{ 
+          fontSize: "10pt",
+          color: "#666",
+          margin: "0"
+        }}>
+          Stampato il {new Date().toLocaleDateString('it-IT', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          })}
+        </div>
       </div>
       
-      {/* Main Table - occupa tutto lo spazio con spaziatura ottimizzata */}
+      {/* Main Table */}
       <table style={{ 
         width: "100%", 
         borderCollapse: "collapse",
-        border: "none",
+        border: "1pt solid #000",
         tableLayout: "fixed",
-        fontSize: "8pt" // Leggermente aumentato
-      }}>        <thead>
+        fontSize: "5pt",
+        marginBottom: "1mm"
+      }}>
+        <thead>
           <tr>
             {columns.map((col, idx) => (
               <th
                 key={col.key}
                 style={{
                   width: idx === 0 ? resourceColumnWidth : dateColumnWidth,
-                  padding: "2mm 1mm", // Padding aumentato per migliore leggibilità
+                  padding: "0.5mm 0.5mm",
                   textAlign: "center",
-                  backgroundColor: "#f0f0f0",
+                  backgroundColor: "#f5f5f5",
                   color: "#000",
                   fontWeight: "bold",
-                  fontSize: "8pt", // Aumentato per migliore leggibilità
-                  border: "0.3pt solid #999",
+                  fontSize: "5pt",
+                  border: "0.5pt solid #000",
                   verticalAlign: "middle",
-                  lineHeight: "1.1",
-                  height: "6mm" // Aumentato per migliore spaziatura
+                  lineHeight: "1",
+                  height: "5mm"
                 }}
               >
                 {idx === 0 ? "Risorsa" : (
                   <div>
-                    <div style={{ fontSize: "6pt", color: "#666", marginBottom: "0.3mm" }}>
+                    <div style={{ fontSize: "6pt", color: "#666", marginBottom: "0.5mm" }}>
                       {new Date(col.key).toLocaleDateString('it-IT', { weekday: 'short' })}
                     </div>
-                    <div style={{ fontWeight: "bold", fontSize: "8pt" }}>
+                    <div style={{ fontWeight: "bold", fontSize: "9pt" }}>
                       {extractOnlyDay(col.key)}
                     </div>
                   </div>
@@ -202,29 +254,31 @@ const PrintableTable = ({ columns, rows, selectedMonth, selectedYear }: {
             <tr key={rowIdx}>
               {columns.map((col, colIdx) => {
                 const shift = row[col.key];
-                const colors = colIdx === 0 ? { backgroundColor: '#f8f8f8', color: '#000' } : getShiftColors(shift, col.key);
+                const colors = colIdx === 0 ? { backgroundColor: '#f8f8f8', color: '#000', fontWeight: 'bold' } : getShiftColors(shift, col.key);
                 
-                return (                  <td
+                return (
+                  <td
                     key={col.key}
                     style={{
                       width: colIdx === 0 ? resourceColumnWidth : dateColumnWidth,
-                      padding: "1.5mm 0.5mm", // Padding aumentato per migliore leggibilità
+                      padding: "0.5mm 0.5mm",
                       textAlign: "center",
                       verticalAlign: "middle",
-                      border: "0.3pt solid #999",
+                      border: "0.5pt solid #000",
                       backgroundColor: colors.backgroundColor,
                       color: colors.color,
-                      fontSize: colIdx === 0 ? "7pt" : "7pt", // Aumentato per migliore leggibilità
-                      fontWeight: colIdx === 0 ? "bold" : "600",
-                      lineHeight: "1.1", // Migliorato per leggibilità
-                      height: "5mm", // Aumentato per migliore spaziatura
+                      fontSize: colIdx === 0 ? "4pt" : "5pt",
+                      fontWeight: colors.fontWeight || (colIdx === 0 ? "bold" : "normal"),
+                      lineHeight: "1",
+                      height: "4mm",
                       overflow: "hidden",
                       wordWrap: "break-word"
                     }}
-                  >                    {colIdx === 0 ? (
+                  >
+                    {colIdx === 0 ? (
                       <div style={{ 
                         color: "#000",
-                        fontSize: "7pt", // Aumentato per migliore leggibilità
+                        fontSize: "5pt",
                         fontWeight: "bold"
                       }}>
                         {row[col.key]}
@@ -235,10 +289,9 @@ const PrintableTable = ({ columns, rows, selectedMonth, selectedYear }: {
                         alignItems: "center", 
                         justifyContent: "center",
                         height: "100%",
-                        fontSize: "6pt", // Leggermente aumentato
-                        fontWeight: "700",
-                        textAlign: "center",
-                        padding: "0.2mm" // Aggiunto padding interno per migliore leggibilità
+                        fontSize: "5pt",
+                        fontWeight: "bold",
+                        textAlign: "center"
                       }}>
                         {generateShiftDisplay(shift)}
                       </div>
@@ -250,6 +303,125 @@ const PrintableTable = ({ columns, rows, selectedMonth, selectedYear }: {
           ))}
         </tbody>
       </table>
+
+      {/* Legenda */}
+      <div style={{ 
+        marginTop: "4mm",
+        pageBreakInside: "avoid"
+      }}>
+        <h3 style={{ 
+          fontSize: "11pt",
+          fontWeight: "bold",
+          margin: "0 0 2mm 0",
+          color: "#000"
+        }}>
+          Legenda Abbreviazioni
+        </h3>
+        
+        {/* Turni */}
+        <div style={{ marginBottom: "2mm" }}>
+          <h4 style={{ 
+            fontSize: "9pt",
+            fontWeight: "bold",
+            margin: "0 0 1mm 0",
+            color: "#000"
+          }}>
+            Turni:
+          </h4>
+          <div style={{ 
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "3mm"
+          }}>
+            {legend.filter(item => ['M', 'MI', 'P', 'S', 'N', 'R'].includes(item.abbr)).map((item, idx) => (
+              <div key={idx} style={{ 
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "1mm",
+                marginRight: "4mm",
+                marginBottom: "1mm"
+              }}>
+                <div style={{ 
+                  width: "4mm",
+                  height: "3mm",
+                  backgroundColor: item.color,
+                  border: "0.5pt solid #000",
+                  display: "inline-block"
+                }} />
+                <span style={{ 
+                  fontSize: "7pt",
+                  fontWeight: "bold"
+                }}>
+                  {item.abbr}
+                </span>
+                <span style={{ 
+                  fontSize: "7pt"
+                }}>
+                  = {item.full}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Assenze */}
+        <div>
+          <h4 style={{ 
+            fontSize: "9pt",
+            fontWeight: "bold",
+            margin: "0 0 1mm 0",
+            color: "#000"
+          }}>
+            Assenze:
+          </h4>
+          <div style={{ 
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "3mm"
+          }}>
+            {legend.filter(item => ['F', 'PE', 'MA', 'RC', 'RD'].includes(item.abbr)).map((item, idx) => (
+              <div key={idx} style={{ 
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "1mm",
+                marginRight: "4mm",
+                marginBottom: "1mm"
+              }}>
+                <div style={{ 
+                  width: "4mm",
+                  height: "3mm",
+                  backgroundColor: item.color,
+                  border: "0.5pt solid #000",
+                  display: "inline-block"
+                }} />
+                <span style={{ 
+                  fontSize: "7pt",
+                  fontWeight: "bold"
+                }}>
+                  {item.abbr}
+                </span>
+                <span style={{ 
+                  fontSize: "7pt"
+                }}>
+                  = {item.full}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Note aggiuntive */}
+        <div style={{ 
+          marginTop: "3mm",
+          fontSize: "7pt",
+          color: "#666",
+          borderTop: "0.5pt solid #ccc",
+          paddingTop: "2mm"        }}>
+          <div><strong>Note:</strong></div>
+          <div>• I numeri dopo le abbreviazioni indicano il piano (es: M1 = Mattina Piano 1)</div>
+          <div>• Le ore parziali sono indicate con &quot;h&quot; (es: PE4h = Permesso 4 ore)</div>
+          <div>• I turni combinati sono separati da &quot;+&quot; (es: M1+PE4h = Mattina Piano 1 + Permesso 4 ore)</div></div>
+      </div>
     </div>
   );
 };
@@ -396,7 +568,7 @@ export default function Page() {
   const sortedResources = useMemo(() => [
     ...resources.filter(r => r.type === ResourceType.FULL_TIME),
     ...resources.filter(r => r.type !== ResourceType.FULL_TIME)
-  ], [resources]);  // Gestione click su turno per personalizzazione colore - definito prima delle colonne
+  ], []); // resources è una costante importata, non serve nel dependency array// Gestione click su turno per personalizzazione colore - definito prima delle colonne
   const handleShiftColorChange = useCallback((shift: ResourceShift, resourceId: string, date: string) => {
     debugLog('🎨 Color change request (new approach):', { 
       resourceId, 
@@ -557,11 +729,10 @@ export default function Page() {
             selectedMonth={selectedMonth}
             onCellDrop={handleCellDrop}
             onShiftChange={handleShiftTypeChange}
-            onShiftColorChange={handleShiftColorChange}
-          />);
+            onShiftColorChange={handleShiftColorChange}          />);
       }
     }))
-  ], [dateArray, selectedYear, selectedMonth, colorChangeCounter, matrix, handleShiftColorChange]);
+  ], [dateArray, selectedYear, selectedMonth, colorChangeCounter, matrix, handleShiftColorChange, sortedResources]);
   // ROWS
   const rows = useMemo(() => {
     return sortedResources.map((resource, rowIdx) => {
@@ -570,8 +741,7 @@ export default function Page() {
         row[date] = matrix[resource.id]?.[date];
       });
       return row;
-    });
-  }, [sortedResources, dateArray, matrix]);  function handleCellDrop(fromRow: number, fromCol: number, toRow: number, toCol: number) {
+    });  }, [sortedResources, dateArray, matrix]);  function handleCellDrop(fromRow: number, fromCol: number, toRow: number, toCol: number) {
     debugLog('🔄 Drag & Drop:', { fromRow, fromCol, toRow, toCol });
     
     if (fromCol === 0 || toCol === 0) return;
@@ -767,20 +937,19 @@ export default function Page() {
     } else {
       debugWarn('🚨 No shift selected for color change');
     }
-  };
-  const handlePrint = useReactToPrint({
+  };  const handlePrint = useReactToPrint({
     contentRef: printableTableRef,
-    documentTitle: `Turni OSS - ${mesi.find(m => m.value === selectedMonth)?.label || 'Mensile'}`,
+    documentTitle: `Turni_OSS_${mesi.find(m => m.value === selectedMonth)?.label || 'Mensile'}_${selectedYear}`,
     onBeforePrint: () => {
       setIsPrintingView(true);
       return Promise.resolve();
     },
     onAfterPrint: () => {
       setIsPrintingView(false);
-    },    pageStyle: `
+    },pageStyle: `
       @page {
         size: A4 landscape;
-        margin: 0;
+        margin: 10mm;
       }
       @media print {
         * {
@@ -794,20 +963,16 @@ export default function Page() {
           width: 100% !important;
           height: 100% !important;
           font-family: Arial, sans-serif !important;
+          font-size: 9pt !important;
         }
         div {
           box-sizing: border-box !important;
-          margin: 0 !important;
-          padding: 0 !important;
         }
         table {
           width: 100% !important;
-          height: 100% !important;
-          page-break-inside: avoid !important;
           border-collapse: collapse !important;
           table-layout: fixed !important;
-          margin: 0 !important;
-          padding: 0 !important;
+          margin-bottom: 4mm !important;
         }
         tr {
           page-break-inside: avoid !important;
@@ -816,11 +981,39 @@ export default function Page() {
           page-break-inside: avoid !important;
           overflow: hidden !important;
           text-overflow: ellipsis !important;
+          border: 0.5pt solid #000 !important;
         }
         h1 {
           page-break-after: avoid !important;
-          margin: 0 !important;
-          padding: 0 !important;
+          font-size: 16pt !important;
+          margin: 0 0 2mm 0 !important;
+        }
+        h3 {
+          page-break-after: avoid !important;
+          font-size: 11pt !important;
+          margin: 0 0 2mm 0 !important;
+        }
+        h4 {
+          page-break-after: avoid !important;
+          font-size: 9pt !important;
+          margin: 0 0 1mm 0 !important;
+        }
+        .legend-section {
+          page-break-inside: avoid !important;
+          margin-top: 4mm !important;
+        }
+        .legend-item {
+          display: inline-flex !important;
+          align-items: center !important;
+          margin-right: 4mm !important;
+          margin-bottom: 1mm !important;
+        }
+        .color-box {
+          width: 4mm !important;
+          height: 3mm !important;
+          border: 0.5pt solid #000 !important;
+          display: inline-block !important;
+          margin-right: 1mm !important;
         }
         .no-print {
           display: none !important;
