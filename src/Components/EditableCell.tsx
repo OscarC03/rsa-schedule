@@ -1,5 +1,14 @@
 "use client";
 
+// Debug flag - set to false to disable debug logging
+const DEBUG_MODE = true;
+
+const debugLog = (message: string, data?: any) => {
+  if (DEBUG_MODE) {
+    console.log(message, data);
+  }
+};
+
 import { memo, useRef, useState, useEffect } from "react";
 import { useDrag, useDrop } from "react-dnd";
 import ReactDOM from "react-dom";
@@ -16,7 +25,7 @@ interface EditableCellProps {
   selectedMonth: number;
   onCellDrop: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void;
   onShiftChange: (rowIdx: number, colIdx: number, shiftType: ShiftType, floor: number, absence?: AbsenceType, absenceHours?: number) => void;
-  onShiftColorChange?: (rowIdx: number, colIdx: number, customColor?: string) => void;
+  onShiftColorChange?: (shift: ResourceShift, resourceId: string, date: string) => void;
   getColorsForDate?: (date: string) => Record<string, string>;
 }
 
@@ -38,7 +47,7 @@ export const EditableCell = memo(function EditableCell({
     : getColorsFromConstants(currentDate, selectedYear, selectedMonth);  const [{ isDragging }, drag] = useDrag(() => ({
     type: CELL_TYPE,
     item: () => {
-      console.log('🚀 Starting drag for:', { rowIdx, colIdx, resourceId: resource.id, date: currentDate });
+      debugLog('🚀 Starting drag for:', { rowIdx, colIdx, resourceId: resource.id, date: currentDate });
       return { 
         rowIdx, 
         colIdx, 
@@ -51,17 +60,16 @@ export const EditableCell = memo(function EditableCell({
       isDragging: monitor.isDragging()
     }),
     end: (item, monitor) => {
-      console.log('🏁 Drag ended:', { didDrop: monitor.didDrop(), item });
+      debugLog('🏁 Drag ended:', { didDrop: monitor.didDrop(), item });
       if (!monitor.didDrop()) {
-        console.log('❌ Drag was cancelled');
+        debugLog('❌ Drag was cancelled');
       }
     }
   }), [rowIdx, colIdx, value, resource.id, currentDate]);
-
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: CELL_TYPE,
     drop: (item: any) => {
-      console.log('🎯 Drop triggered:', { 
+      debugLog('🎯 Drop triggered:', { 
         from: { row: item.rowIdx, col: item.colIdx }, 
         to: { row: rowIdx, col: colIdx } 
       });
@@ -172,14 +180,22 @@ export const EditableCell = memo(function EditableCell({
     setSelectedAbsence(value?.absence);
     setAbsenceHours(value?.absenceHours);
     setIsEditing(true);
-  };
-  // Handle right click for color customization
+  };  // Handle right click for color customization
   const handleRightClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (onShiftColorChange && value) {
-      // Trigger color customization modal via parent component
-      onShiftColorChange(rowIdx, colIdx, value.customColor);
+      // Pass the shift data directly instead of coordinates to avoid stale position issues
+      debugLog('🖱️ Right click on cell:', { 
+        rowIdx, 
+        colIdx, 
+        resourceId: resource.id, 
+        date: currentDate,
+        shiftData: value,
+        hasShiftId: !!value.id,
+        shiftId: value.id
+      });
+      onShiftColorChange(value, resource.id, currentDate);
     }
   };
   

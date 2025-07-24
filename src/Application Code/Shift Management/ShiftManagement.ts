@@ -1,5 +1,10 @@
 import { Resource, ResourceShift, ResourceType, ShiftType, Days } from "@/model/model";
 
+// Helper function to generate unique IDs for shifts
+const generateShiftId = (): string => {
+  return `shift_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+};
+
 // Helper function to convert JavaScript day of week to our Days enum
 const getJSDayOfWeek = (date: Date): Days => {
   const jsDay = date.getDay(); // Sunday = 0, Monday = 1, etc.
@@ -107,9 +112,8 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
       if (shift === ShiftType.Morning && morningIToAssign > 0) {
         shift = ShiftType.MorningI;
         morningIToAssign--;
-      }
-
-      schedule.push({
+      }      schedule.push({
+        id: generateShiftId(),
         resourceId: resource.id,
         shiftType: shift,
         shiftCode: shift,
@@ -135,9 +139,8 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
         logPartTimeDebug(resource.id, currentDate, workingDayIndex, cycleIdx, shift);
 
         // Debug logging for part-time shift assignment
-        logPartTimeDebug(resource.id, currentDate, workingDayIndex, cycleIdx, shift);
-
-        schedule.push({
+        logPartTimeDebug(resource.id, currentDate, workingDayIndex, cycleIdx, shift);        schedule.push({
+          id: generateShiftId(),
           resourceId: resource.id,
           shiftType: shift,
           shiftCode: shift,
@@ -154,9 +157,9 @@ export const generateShift = (startDate: Date, resources: Resource[]): ResourceS
         
         // Increment working days count only on working days
         partTimeWorkingDaysCount[resource.id]++;
-      } else {
-        // Part-time resource not working today
+      } else {        // Part-time resource not working today
         schedule.push({
+          id: generateShiftId(),
           resourceId: resource.id,
           shiftType: ShiftType.Free,
           shiftCode: ShiftType.Free,
@@ -337,6 +340,7 @@ export function replicateScheduleForMonth(
       let shift = SHIFT_CYCLE[cycleIdx];
 
       newSchedule.push({
+        id: generateShiftId(),
         resourceId: resource.id,
         shiftType: shift,
         shiftCode: shift,
@@ -354,9 +358,8 @@ export function replicateScheduleForMonth(
         const cycleIdx = (lastIndex + workingDayIndex) % partTimeShiftCycle.length;
         let shift = partTimeShiftCycle[cycleIdx];
 
-        logPartTimeDebug(resource.id, currentDate, workingDayIndex, cycleIdx, shift);
-
-        newSchedule.push({
+        logPartTimeDebug(resource.id, currentDate, workingDayIndex, cycleIdx, shift);        newSchedule.push({
+          id: generateShiftId(),
           resourceId: resource.id,
           shiftType: shift,
           shiftCode: shift,
@@ -366,9 +369,9 @@ export function replicateScheduleForMonth(
         });
 
         // Increment working days count only on working days
-        partTimeWorkingDaysCount[resource.id]++;
-      } else {
+        partTimeWorkingDaysCount[resource.id]++;      } else {
         newSchedule.push({
+          id: generateShiftId(),
           resourceId: resource.id,
           shiftType: ShiftType.Free,
           shiftCode: ShiftType.Free,

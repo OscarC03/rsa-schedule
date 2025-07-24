@@ -1,8 +1,27 @@
 "use client";
 
+// Debug flag - set to false to disable debug logging in production
+const DEBUG_MODE = true;
+
+const debugLog = (message: string, data?: any) => {
+  if (DEBUG_MODE) {
+    console.log(message, data);
+  }
+};
+
+const debugWarn = (message: string, data?: any) => {
+  if (DEBUG_MODE) {
+    console.warn(message, data);  }
+};
+
+// Helper function to generate unique IDs for shifts
+const generateShiftId = (): string => {
+  return `shift_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+};
+
 import { generateShift, getLastShiftIndexByResource, replicateScheduleForMonth } from "@/Application Code/Shift Management/ShiftManagement";
 import { ResourceShift, ResourceType, ShiftType, AbsenceType } from "@/model/model";
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { TableVirtuoso } from "react-virtuoso";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -372,12 +391,137 @@ export default function Page() {
   };
 
   // Drag type
-  const CELL_TYPE = "CELL";
-  // Ordina le risorse una volta sola e riutilizza
+  const CELL_TYPE = "CELL";  // Ordina le risorse una volta sola e riutilizza
   const sortedResources = useMemo(() => [
     ...resources.filter(r => r.type === ResourceType.FULL_TIME),
     ...resources.filter(r => r.type !== ResourceType.FULL_TIME)
-  ], [resources]);
+  ], [resources]);  // Gestione click su turno per personalizzazione colore - definito prima delle colonne
+  const handleShiftColorChange = useCallback((shift: ResourceShift, resourceId: string, date: string) => {
+    debugLog('🎨 Color change request (new approach):', { 
+      resourceId, 
+      date, 
+      shiftData: shift,
+      shiftId: shift.id,
+      hasShiftId: !!shift.id,
+      timestamp: Date.now()
+    });
+    
+    // Prima di tutto, verifichiamo lo stato della matrice
+    debugLog('🔍 Matrix debug for resource:', {
+      resourceId,
+      hasResourceInMatrix: !!matrix[resourceId],
+      datesInResource: matrix[resourceId] ? Object.keys(matrix[resourceId]).length : 0,
+      targetDate: date,
+      hasTargetDate: !!matrix[resourceId]?.[date]
+    });
+    
+    // Verifica che il turno esista ancora nella posizione corretta
+    const currentShift = matrix[resourceId]?.[date];
+      debugLog('🔍 Debug ID check:', {
+      shiftId: shift.id,
+      currentShiftId: currentShift?.id,
+      hasShiftId: !!shift.id,
+      hasCurrentShiftId: !!currentShift?.id,
+      idsMatch: currentShift && currentShift.id === shift.id,
+      currentShiftType: currentShift?.shiftType,
+      originalShiftType: shift.shiftType
+    });
+    
+    // Debug: controlla quanti turni hanno ID nella matrice
+    let totalShifts = 0;
+    let shiftsWithId = 0;
+    for (const [rId, resourceMatrix] of Object.entries(matrix)) {
+      for (const [d, s] of Object.entries(resourceMatrix)) {
+        if (s) {
+          totalShifts++;
+          if (s.id) {
+            shiftsWithId++;
+          }
+        }
+      }
+    }
+    debugLog('📊 Matrix ID statistics:', {
+      totalShifts,
+      shiftsWithId,
+      percentageWithId: totalShifts > 0 ? Math.round((shiftsWithId / totalShifts) * 100) : 0
+    });
+      if (currentShift && currentShift.id === shift.id) {
+      debugLog('🎨 Shift found in expected position:', { 
+        resourceId,
+        date,
+        currentShift: currentShift.shiftType
+      });
+      
+      // Create a shift object with the CURRENT position coordinates
+      const shiftWithCurrentPosition = {
+        ...currentShift,
+        resourceId: resourceId, // Use current resource ID
+        date: date // Use current date
+      };
+      
+      setSelectedShiftForColors(shiftWithCurrentPosition); // Usa coordinate aggiornate
+      
+      // Trova il nome della risorsa
+      const resource = sortedResources.find(r => r.id === resourceId);
+      if (resource) {
+        setSelectedResourceName(`${resource.firstName} ${resource.lastName.charAt(0)}.`);
+      }
+      setIsShiftColorModalOpen(true);
+    } else {
+      // Il turno potrebbe essere stato spostato, cerchiamolo nella matrice
+      debugLog('🔍 Shift not in expected position, searching matrix...', { 
+        expectedResourceId: resourceId,
+        expectedDate: date,
+        shiftId: shift.id
+      });
+      
+      let foundShift: ResourceShift | null = null;
+      let foundResourceId: string | null = null;
+      let foundDate: string | null = null;
+      
+      // Cerca il turno in tutta la matrice usando l'ID del turno
+      for (const [rId, resourceMatrix] of Object.entries(matrix)) {
+        for (const [d, s] of Object.entries(resourceMatrix)) {
+          if (s && s.id === shift.id) {
+            foundShift = s;
+            foundResourceId = rId;
+            foundDate = d;
+            break;
+          }
+        }
+        if (foundShift) break;
+      }
+        if (foundShift && foundResourceId && foundDate) {
+        debugLog('✅ Found shift in new position:', { 
+          originalPos: { resourceId, date },
+          newPos: { resourceId: foundResourceId, date: foundDate },
+          shift: foundShift.shiftType
+        });
+        
+        // Create a shift object with the FOUND position coordinates
+        const shiftWithFoundPosition = {
+          ...foundShift,
+          resourceId: foundResourceId, // Use found resource ID
+          date: foundDate // Use found date
+        };
+        
+        setSelectedShiftForColors(shiftWithFoundPosition);
+        
+        // Trova il nome della risorsa nella nuova posizione
+        const resource = sortedResources.find(r => r.id === foundResourceId);
+        if (resource) {
+          setSelectedResourceName(`${resource.firstName} ${resource.lastName.charAt(0)}.`);
+        }
+        setIsShiftColorModalOpen(true);
+      } else {
+        debugWarn('🚨 Shift not found anywhere in matrix:', { 
+          resourceId, 
+          date, 
+          shiftId: shift.id 
+        });
+      }
+    }
+  }, [matrix, sortedResources]); // Dipendenze semplificate
 
   // COLUMNS - Update to use the EditableCell component
   const columns = useMemo(() => [
@@ -416,7 +560,7 @@ export default function Page() {
           />);
       }
     }))
-  ], [dateArray, selectedYear, selectedMonth, colorChangeCounter, matrix]);
+  ], [dateArray, selectedYear, selectedMonth, colorChangeCounter, matrix, handleShiftColorChange]);
   // ROWS
   const rows = useMemo(() => {
     return sortedResources.map((resource, rowIdx) => {
@@ -427,7 +571,7 @@ export default function Page() {
       return row;
     });
   }, [sortedResources, dateArray, matrix]);  function handleCellDrop(fromRow: number, fromCol: number, toRow: number, toCol: number) {
-    console.log('🔄 Drag & Drop:', { fromRow, fromCol, toRow, toCol });
+    debugLog('🔄 Drag & Drop:', { fromRow, fromCol, toRow, toCol });
     
     if (fromCol === 0 || toCol === 0) return;
     
@@ -436,7 +580,7 @@ export default function Page() {
         toRow < 0 || toRow >= sortedResources.length ||
         fromCol - 1 < 0 || fromCol - 1 >= dateArray.length ||
         toCol - 1 < 0 || toCol - 1 >= dateArray.length) {
-      console.warn('Invalid drag & drop indices:', { fromRow, fromCol, toRow, toCol });
+      debugWarn('Invalid drag & drop indices:', { fromRow, fromCol, toRow, toCol });
       return;
     }
     
@@ -445,7 +589,7 @@ export default function Page() {
     const fromDate = dateArray[fromCol - 1];
     const toDate = dateArray[toCol - 1];
 
-    console.log('📋 Resources & Dates:', { 
+    debugLog('📋 Resources & Dates:', { 
       fromResource: fromResource?.firstName, 
       toResource: toResource?.firstName, 
       fromDate, 
@@ -454,22 +598,22 @@ export default function Page() {
 
     // Verify resources exist
     if (!fromResource || !toResource) {
-      console.warn('Resources not found:', { fromResource, toResource });
+      debugWarn('Resources not found:', { fromResource, toResource });
       return;
-    }
-
-    // Get current matrix values
+    }    // Get current matrix values
     const fromValue = matrix[fromResource.id]?.[fromDate];
     const toValue = matrix[toResource.id]?.[toDate];
 
-    console.log('📊 Current values:', { 
-      fromValue: fromValue?.shiftType, 
-      toValue: toValue?.shiftType 
+    debugLog('📊 Current values:', { 
+      fromValue: fromValue?.shiftType,
+      fromValueId: fromValue?.id,
+      toValue: toValue?.shiftType,
+      toValueId: toValue?.id
     });
 
     // If values are the same, no need to swap
     if (fromValue === toValue) {
-      console.log('⚡ Values are the same, skipping swap');
+      debugLog('⚡ Values are the same, skipping swap');
       return;
     }
 
@@ -488,13 +632,15 @@ export default function Page() {
     newMatrix[fromResource.id] = { ...newMatrix[fromResource.id] };
     newMatrix[toResource.id] = { ...newMatrix[toResource.id] };
 
-    // Perform the swap
+    // Perform the swap preserving the IDs
     newMatrix[fromResource.id][fromDate] = toValue;
     newMatrix[toResource.id][toDate] = fromValue;
 
-    console.log('✅ Swap completed:', { 
-      fromNew: newMatrix[fromResource.id][fromDate]?.shiftType, 
-      toNew: newMatrix[toResource.id][toDate]?.shiftType 
+    debugLog('✅ Swap completed with IDs preserved:', { 
+      fromNew: newMatrix[fromResource.id][fromDate]?.shiftType,
+      fromNewId: newMatrix[fromResource.id][fromDate]?.id,
+      toNew: newMatrix[toResource.id][toDate]?.shiftType,
+      toNewId: newMatrix[toResource.id][toDate]?.id
     });
 
     // Update state and save to database
@@ -513,40 +659,52 @@ export default function Page() {
   ) {
     if (colIdx === 0) return; // Skip resource name column
 
-    // Usa le risorse ordinate (stesso ordine del rendering)
-    const sortedResources = [
-      ...resources.filter(r => r.type === ResourceType.FULL_TIME),
-      ...resources.filter(r => r.type !== ResourceType.FULL_TIME)
-    ];
+    debugLog('🔧 Shift type change:', { rowIdx, colIdx, shiftType, floor, absence, absenceHours });
+
+    // Usa le stesse risorse ordinate del rendering (sortedResources è definito sopra)
     
     // Validate indices
     if (rowIdx < 0 || rowIdx >= sortedResources.length || colIdx - 1 < 0 || colIdx - 1 >= dateArray.length) {
-      console.warn('Invalid shift change indices:', { rowIdx, colIdx });
+      debugWarn('Invalid shift change indices:', { rowIdx, colIdx, sortedResourcesLength: sortedResources.length, dateArrayLength: dateArray.length });
       return;
     }
     
     const resource = sortedResources[rowIdx];
     const date = dateArray[colIdx - 1];
     
+    debugLog('🔧 Shift change data:', {
+      resource: resource?.firstName,
+      date,
+      oldShift: matrix[resource.id]?.[date]?.shiftType
+    });
+    
     if (!resource || !date) {
-      console.warn('Resource or date not found:', { resource, date });
+      debugWarn('Resource or date not found:', { resource, date });
       return;
     }
     
     const oldShift = matrix[resource.id]?.[date];
 
     if (!oldShift) {
-      console.warn('Old shift not found:', { resourceId: resource.id, date });
+      debugWarn('Old shift not found:', { resourceId: resource.id, date });
       return;
-    }
-
-    const newShift: ResourceShift = {
+    }    const newShift: ResourceShift = {
       ...oldShift,
       shiftType: shiftType,
       floor: (shiftType === ShiftType.Free || shiftType === ShiftType.MorningI || absence) ? 0 : floor,
       absence: absence,
       absenceHours: absence ? absenceHours : undefined
     };
+
+    debugLog('🔧 New shift data:', {
+      oldShift: oldShift.shiftType,
+      oldShiftId: oldShift.id,
+      newShift: newShift.shiftType,
+      newShiftId: newShift.id,
+      idPreserved: oldShift.id === newShift.id,
+      floor: newShift.floor,
+      absence: newShift.absence
+    });
 
     // Deep copy della riga della risorsa
     const newMatrix = { ...matrix };
@@ -563,6 +721,8 @@ export default function Page() {
     
     // Forza re-render dei componenti
     setColorChangeCounter(prev => prev + 1);
+    
+    debugLog('✅ Shift change completed');
   }
 
   const handleColorChange = () => {
@@ -575,32 +735,20 @@ export default function Page() {
   // Funzione per controllare se un giorno ha personalizzazioni colori
   const hasColorCustomizations = (date: string): boolean => {
     const customizations = getDayColorCustomizations(selectedYear, selectedMonth);
-    return customizations.some(c => c.date === date);
-  };
-  // Gestione click su turno per personalizzazione colore
-  const handleShiftColorChange = (rowIdx: number, colIdx: number, currentCustomColor?: string) => {
-    // Usa le risorse ordinate (stesso ordine del rendering)
-    const sortedResources = [
-      ...resources.filter(r => r.type === ResourceType.FULL_TIME),
-      ...resources.filter(r => r.type !== ResourceType.FULL_TIME)
-    ];
-    
-    const resource = sortedResources[rowIdx];
-    const date = dateArray[colIdx - 1];
-    const shift = matrix[resource.id]?.[date];
-    
-    if (shift) {
-      setSelectedShiftForColors(shift);
-      setSelectedResourceName(`${resource.firstName} ${resource.lastName.charAt(0)}.`);
-      setIsShiftColorModalOpen(true);
-    }
-  };
+    return customizations.some(c => c.date === date);  };
 
   // Salva il colore personalizzato del turno
   const handleSaveShiftColor = (customColor?: string) => {
     if (selectedShiftForColors) {
       const resourceId = selectedShiftForColors.resourceId;
       const date = selectedShiftForColors.date;
+      
+      debugLog('💾 Saving shift color:', {
+        resourceId,
+        date,
+        customColor,
+        oldColor: selectedShiftForColors.customColor
+      });
       
       const newShift: ResourceShift = {
         ...selectedShiftForColors,
@@ -609,9 +757,14 @@ export default function Page() {
 
       const newMatrix = { ...matrix };
       newMatrix[resourceId] = { ...newMatrix[resourceId], [date]: newShift };
-        setMatrix(newMatrix);
+      
+      setMatrix(newMatrix);
       saveMatrixToDatabase(newMatrix, selectedYear, selectedMonth);
       setColorChangeCounter(prev => prev + 1);
+      
+      debugLog('✅ Shift color saved successfully');
+    } else {
+      debugWarn('🚨 No shift selected for color change');
     }
   };
   const handlePrint = useReactToPrint({

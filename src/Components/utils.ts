@@ -13,11 +13,29 @@ export async function saveMatrixToDatabase(matrix: Record<string, Record<string,
   }
 }
 
+// Helper function to generate unique IDs for shifts
+const generateShiftId = (): string => {
+  return `shift_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+};
+
 export async function loadMatrixFromDatabase(year: number, month: number): Promise<Record<string, Record<string, ResourceShift>> | null> {
   try {
     const response = await apiService.getMatrix(year, month);
     if (response.success && response.data) {
-      return response.data;
+      // Ensure all shifts have proper client-side IDs for drag & drop tracking
+      const matrix = response.data;
+      let generatedIds = 0;
+      for (const resourceId of Object.keys(matrix)) {
+        for (const date of Object.keys(matrix[resourceId])) {
+          const shift = matrix[resourceId][date];
+          if (shift && !shift.id) {
+            shift.id = generateShiftId();
+            generatedIds++;
+          }
+        }
+      }
+      console.log(`📊 Loaded matrix: ${generatedIds} shifts got new IDs`);
+      return matrix;
     }
     return null;
   } catch (error) {

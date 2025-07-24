@@ -52,6 +52,7 @@ export enum AbsenceType {
 }
 
 export class ResourceShift {
+    public id: string = ''; // unique identifier for tracking shifts after D&D
     public resourceId: string = '';
     public shiftCode: string = "";
     public shiftType: ShiftType = ShiftType.Morning;
