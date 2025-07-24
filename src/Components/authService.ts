@@ -2,6 +2,7 @@
 export class AuthService {
   private static TOKEN_KEY = 'rsa_auth_token';
   private static API_BASE = '/Server/api';
+  private static isRedirecting = false;
 
   /**
    * Decodifica un JWT token (payload)
@@ -93,18 +94,35 @@ export class AuthService {
       this.clearLocalData();
     }
   }  /**
-   * Verifica se l'utente è autenticato
+   * Verifica veloce se l'utente è autenticato (solo controllo locale)
    */
-  static async isAuthenticated(): Promise<boolean> {
+  static isAuthenticatedSync(): boolean {
     const token = this.getToken();
     
     if (!token) {
       return false;
     }
 
-    // Prima verifica locale se il token è scaduto
+    // Verifica solo se il token è scaduto localmente
     if (this.isTokenExpired(token)) {
       this.clearLocalData();
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Verifica se l'utente è autenticato (con controllo server)
+   */
+  static async isAuthenticated(): Promise<boolean> {
+    // Prima verifica rapida locale
+    if (!this.isAuthenticatedSync()) {
+      return false;
+    }
+
+    const token = this.getToken();
+    if (!token) {
       return false;
     }
 
@@ -140,7 +158,7 @@ export class AuthService {
       return true;
     } catch (error) {
       console.error('Errore verifica autenticazione:', error);
-      this.clearLocalData();
+      // Non fare clearLocalData qui per evitare loop, solo log dell'errore
       return false;
     }
   }
@@ -179,7 +197,6 @@ export class AuthService {
       role: payload.role
     };
   }
-
   /**
    * Pulisce i dati locali
    */
@@ -187,6 +204,18 @@ export class AuthService {
     if (typeof window === 'undefined') return;
     
     localStorage.removeItem(this.TOKEN_KEY);
+    this.isRedirecting = false;
+  }
+
+  /**
+   * Previene reindirizzamenti multipli
+   */
+  static setRedirecting(value: boolean) {
+    this.isRedirecting = value;
+  }
+
+  static getIsRedirecting(): boolean {
+    return this.isRedirecting;
   }
 
   /**

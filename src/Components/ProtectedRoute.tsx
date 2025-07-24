@@ -11,21 +11,43 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isChecking, setIsChecking] = useState(true);
   const router = useRouter();
-
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        // Evita controlli multipli se stiamo già reindirizzando
+        if (AuthService.getIsRedirecting()) {
+          return;
+        }
+
+        setIsChecking(true);
+        
+        // Prima verifica sincrona rapida
+        if (!AuthService.isAuthenticatedSync()) {
+          setIsAuthenticated(false);
+          AuthService.setRedirecting(true);
+          router.push("/login");
+          return;
+        }
+
+        // Se il controllo sincrono passa, fai la verifica completa
         const isAuth = await AuthService.isAuthenticated();
         setIsAuthenticated(isAuth);
         
-        if (!isAuth) {
+        if (!isAuth && !AuthService.getIsRedirecting()) {
+          AuthService.setRedirecting(true);
           router.push("/login");
         }
       } catch (error) {
         console.error("Errore verifica autenticazione:", error);
         setIsAuthenticated(false);
-        router.push("/login");
+        if (!AuthService.getIsRedirecting()) {
+          AuthService.setRedirecting(true);
+          router.push("/login");
+        }
+      } finally {
+        setIsChecking(false);
       }
     };
 
@@ -36,9 +58,8 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     // Setup auto-logout su token scaduto
     AuthService.setupAutoLogoutOnTokenExpiry();
   }, []);
-
   // Mostra loading mentre verifica l'autenticazione
-  if (isAuthenticated === null) {
+  if (isAuthenticated === null || isChecking) {
     return <LoadingScreen />;
   }
 

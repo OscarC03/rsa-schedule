@@ -12,12 +12,25 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const router = useRouter();
 
+  // Reset flag di reindirizzamento quando arriviamo alla pagina login
+  useEffect(() => {
+    AuthService.setRedirecting(false);
+  }, []);
   // Verifica se l'utente è già autenticato
   useEffect(() => {
     const checkAuth = async () => {
-      const isAuth = await AuthService.isAuthenticated();
-      if (isAuth) {
-        router.push("/dashboard");
+      // Prima verifica sincrona per evitare chiamate server inutili
+      if (AuthService.isAuthenticatedSync()) {
+        // Solo se il controllo sincrono passa, fai la verifica completa
+        try {
+          const isAuth = await AuthService.isAuthenticated();
+          if (isAuth) {
+            router.push("/dashboard");
+          }
+        } catch (error) {
+          console.error("Errore verifica autenticazione:", error);
+          // Non fare nulla, resta sulla pagina login
+        }
       }
     };
     
